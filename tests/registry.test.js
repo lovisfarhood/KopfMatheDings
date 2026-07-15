@@ -1,0 +1,6 @@
+import test from"node:test";import assert from"node:assert/strict";import{generateTask,generatorsForTopic,registry,TOPICS,validateTask}from"../src/core/registry.js";
+test("mindestens 16 Themen und 36 Generatoren",()=>{assert.ok(TOPICS.filter(x=>x.enabled&&x.id!=="mixed").length>=16);assert.ok(registry.length>=36);assert.equal(new Set(registry.map(x=>x.id)).size,registry.length)});
+test("alle Themen haben Generatoren",()=>TOPICS.filter(x=>x.id!=="mixed").forEach(x=>assert.ok(generatorsForTopic(x.id).length,x.id)));
+test("Auto-Verteilung ungefähr 45/40/15",()=>{const c={locker:0,hm1:0,exam:0};for(let i=0;i<3000;i++)c[generateTask({seed:`mix-${i}`}).difficulty]++;assert.ok(c.locker>c.hm1&&c.hm1>c.exam,JSON.stringify(c));assert.ok(c.locker/3000>.38&&c.locker/3000<.52);assert.ok(c.exam/3000<.21)});
+test("MATLAB standardmäßig aus",()=>{for(let i=0;i<1000;i++)assert.notEqual(generateTask({seed:`no-${i}`}).topic,"matlab")});
+test("Verlauf vermeidet direkte Wiederholung",()=>{const a=generateTask({topic:"basics",difficulty:"locker",seed:"same"}),b=generateTask({topic:"basics",difficulty:"locker",seed:"same",history:[a.signature]});assert.notEqual(a.signature,b.signature);assert.ok(validateTask(b))});

@@ -1,0 +1,3 @@
+const KEY="kopfmathe.v1",defaults={topic:"mixed",difficulty:"auto",matlab:false,score:{correct:0,wrong:0},recent:[]};const storage=()=>{try{localStorage.setItem("__km","1");localStorage.removeItem("__km");return localStorage}catch{return null}};
+export function load(){const s=storage();if(!s)return structuredClone(defaults);try{const x=JSON.parse(s.getItem(KEY)||"{}");return{...structuredClone(defaults),...x,score:{...defaults.score,...x.score},recent:Array.isArray(x.recent)?x.recent.slice(-20):[]}}catch{return structuredClone(defaults)}}
+export function save(x){try{storage()?.setItem(KEY,JSON.stringify({...x,recent:x.recent.slice(-20)}));return true}catch{return false}}

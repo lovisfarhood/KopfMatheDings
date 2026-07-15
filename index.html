@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme:light)">
+  <meta name="theme-color" content="#111613" media="(prefers-color-scheme:dark)">
+  <meta name="description" content="Kurze Mathematik-Aufgaben von Grundlagen bis TUM HM1.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="KopfMathe">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-180.png">
+  <link rel="stylesheet" href="./styles.css">
+  <title>KopfMathe</title>
+</head>
+<body>
+<noscript>KopfMathe benötigt JavaScript. Danach funktioniert es auch offline.</noscript>
+<main class="shell">
+  <section id="start" class="view start" aria-labelledby="title">
+    <header class="brand"><div class="logo" aria-hidden="true">Σ</div><div><p>Kurz rechnen. Sicher werden.</p><h1 id="title">KopfMathe</h1></div></header>
+    <div class="card setup">
+      <label for="topic">Thema</label><select id="topic"></select>
+      <label for="difficulty">Schwierigkeit</label>
+      <select id="difficulty"><option value="auto">Automatisch gemischt</option><option value="locker">Locker</option><option value="hm1">HM1-Baustein</option><option value="exam">Klausurnah kompakt</option></select>
+      <p id="difficulty-hint" class="hint">45 % locker · 40 % HM1 · 15 % klausurnah</p>
+      <details><summary>Einstellungen</summary><label class="toggle"><span><strong>MATLAB-Verständnis</strong><small>Optional und standardmäßig aus</small></span><input id="matlab" type="checkbox"></label></details>
+      <button id="start-button" class="button primary big" type="button">Aufgabe starten</button>
+    </div>
+    <p class="privacy">Keine Anmeldung · kein Tracking · nach dem ersten Laden offline</p>
+  </section>
+  <section id="exercise" class="view" hidden aria-labelledby="task-title">
+    <header class="top"><button id="back" class="icon" type="button" aria-label="Zurück">←</button><div id="meta" class="meta"></div><div id="score" class="score">0 ✓ · 0 ✕</div></header>
+    <article class="card task">
+      <div class="task-meta"><span id="time"></span><span id="kind"></span></div>
+      <h2 id="task-title" class="sr-only">Aufgabe</h2><div id="prompt" class="prompt"></div>
+      <form id="form" novalidate><div id="inputs"></div><button id="check" class="button primary big" type="submit">Prüfen</button></form>
+      <div id="feedback" class="feedback" aria-live="polite" hidden></div>
+      <div id="actions" class="actions" hidden><button id="retry" class="button secondary" type="button">Noch einmal versuchen</button><button id="solution-button" class="button ghost" type="button">Lösung zeigen</button><button id="next" class="button primary" type="button">Nächste Aufgabe</button></div>
+      <section id="solution" class="solution" hidden><h3>Kurzlösung</h3><div id="solution-text"></div></section>
+    </article>
+  </section>
+</main>
+<div id="update" class="update" hidden><span>Neue Version verfügbar.</span><button id="reload" class="button secondary" type="button">Neu laden</button></div>
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
