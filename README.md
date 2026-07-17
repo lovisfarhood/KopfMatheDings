@@ -1,89 +1,108 @@
 # KopfMathe
 
-KopfMathe ist eine installierbare Mathematik-Übungs-App für kurze Einheiten auf dem iPhone. Nach dem Start erscheint direkt eine zufällig erzeugte Aufgabe. Es gibt keine Konten, Werbung, Streaks, Cloud-Dienste oder Laufzeit-KI.
+KopfMathe ist eine mobile, installierbare Mathematik-PWA für kurze, klausurnahe Trainingseinheiten. Die App funktioniert ohne Konto, Backend, Tracking oder Laufzeit-KI und nach dem ersten vollständigen Laden auch offline.
 
-## Kurz benutzen
+Die aktuelle Architektur umfasst 18 Themen, 102 auditierte Generatorfamilien, davon 99 aktiv. Drei schwache Familien sind bewusst deaktiviert. Die Standardauswahl ist **Klausurstandard**; Basisaufgaben werden dort nicht beigemischt.
 
-1. Thema und Schwierigkeit wählen.
-2. **Aufgabe starten** antippen.
-3. Antwort eingeben und **Prüfen** wählen.
+## Benutzung
 
-Nach dem ersten vollständigen Laden funktioniert die App offline.
+1. Ein Preset wählen oder beliebig viele Themen-Chips kombinieren.
+2. **Basis**, **Klausurstandard**, **Klausur+** oder **Transfer / Knobeln** wählen.
+3. **Kopfmodus** oder **Schrittmodus** wählen und das Training starten.
+4. Mit der dauerhaft angedockten KopfMathe-Tastatur antworten.
 
-## Niveau und Themen
+Die Themenauswahl wird lokal gespeichert. „Gemischt“ ist kein verstecktes Thema mehr: Nur ausdrücklich aktive Themen werden verwendet.
 
-Die Aufgaben reichen vom Schul-Kopfrechnen bis zu kompakten Rechenbausteinen aus **Mathematik 1 für Maschinenwesen und CIW (TUM)**. Große Klausuraufgaben werden in Schritte von meist 5 bis 90 Sekunden zerlegt.
+## Eingabe und Prüfung
 
-Enthalten sind 18 auswählbare Themen und 78 Generatorfamilien: Rechengrundlagen, Algebra, komplexe Zahlen, Grenzwerte, Folgen, Reihen, Ableitungen, Taylorpolynome, Integrale, Matrizen, lineare Gleichungssysteme, Vektorräume, Orthogonalität und Approximation, Matrixzerlegungen, Numerik, Differentialgleichungen, Wahr/Falsch und optional MATLAB-Verständnis.
+KopfMathe verwendet drei Antwortmuster mit einem gemeinsamen Controller:
 
-Nicht enthalten sind insbesondere Eigenwerte, mehrdimensionale Analysis, Fourier-/Laplace-Transformation, Stochastik und lange Beweise.
+- Multiple Choice mit aus typischen Fehlern abgeleiteten Distraktoren
+- strukturierte Inline-Antworten für Koeffizienten, Vektoren und Matrizen
+- freie mathematische Ausdrücke mit zweidimensionaler Vorschau für Brüche, Potenzen und Wurzeln
 
-## Schwierigkeit
+Die eigene Tastatur enthält Zahlen, Minus, Grundrechenarten, Variablen, Konstanten, Funktionen, Brüche, Potenzen, Wurzeln, Mengen- und Intervallklammern sowie Cursor-, Lösch- und Prüftasten. Aufgabenfelder sind keine nativen Texteingaben; dadurch öffnet sich auf dem iPhone nicht ungewollt die Systemtastatur. Hardware-Tastaturen bleiben nutzbar.
 
-- **Locker:** kleine Zahlen und meist ein Schritt
-- **HM1-Baustein:** typische kurze HM1-Rechnungen
-- **Klausurnah kompakt:** klausurnahe Konzepte mit einfachen Zahlen
-- **Automatisch:** 45 % Locker, 40 % HM1, 15 % klausurnah
+Der sichere Parser verwendet kein `eval()`. Er prüft unter anderem:
 
-## Lokal starten
+- exakte und dezimale Zahlen, negative Werte und Brüche
+- algebraisch äquivalente Ausdrücke wie `x+x` und `2x`
+- faktorisierte und ausmultiplizierte Darstellungen
+- ungeordnete Lösungsmengen
+- Matrizen mit Dimensionsprüfung
+- Eigenvektoren bis auf einen von null verschiedenen Skalarfaktor
+- komplexe kartesische und Euler-Darstellungen
+- Argumente modulo `2π`
 
-Auf macOS **KopfMathe starten.command** doppelt anklicken. Falls macOS blockiert: Rechtsklick → **Öffnen**.
+Details stehen in [INPUT_ARCHITECTURE.md](./INPUT_ARCHITECTURE.md).
 
-Alternativ im Projektordner:
+## Schrittmodus
+
+Der Schrittmodus hält Zwischenergebnisse als antippbare Chips oberhalb der Tastatur sichtbar. Chips lassen sich einsetzen, zum Bearbeiten in die aktive Eingabe übernehmen oder löschen. Kuratierte mehrstufige Abläufe bestehen für Gauß-Verfahren, Partialbruchzerlegung, verschobene Taylorpolynome und LU-Zerlegung. Jede Aufgabe kann außerdem eigene Zwischenergebnisse speichern.
+
+## Aufgabenqualität
+
+Die Auswahl gewichtet Generatorfamilien und realistische Klausurthemen, blockiert unmittelbare Wiederholungen und verstärkt lokal erkannte Schwächen. Nach Fehlern, Hinweisen, Überspringen oder Lösungseinblick stehen ähnliche Aufgaben, einfachere Vorstufen, schwierigere Varianten und spätere Wiederholung bereit.
+
+Das vollständige Audit ist in [TASK_AUDIT.md](./TASK_AUDIT.md) dokumentiert. Die Zuordnung zu wiederkehrenden HM1-Mustern steht in [EXAM_ALIGNMENT.md](./EXAM_ALIGNMENT.md).
+
+## Lokal entwickeln
+
+Es gibt keine Runtime-Abhängigkeiten und keinen Bundler. Erforderlich sind ein statischer Webserver und für Tests Node.js 20 oder neuer.
 
 ```bash
 python3 -m http.server 8080
 ```
 
-Danach `http://localhost:8080` öffnen.
+Danach `http://127.0.0.1:8080` öffnen. Auf macOS kann alternativ **KopfMathe starten.command** verwendet werden.
 
-## Tests
-
-Node.js 20 oder neuer wird nur für Tests benötigt:
+## Tests und Produktionsprüfung
 
 ```bash
 npm test
+npm run build
 ```
 
-Geprüft werden exakte Brüche, Dezimalkomma, Lösungsmengen, komplexe Zahlen, Vektoren, Matrizen, Wahr/Falsch, seeded Zufall, Registry sowie 100 erzeugte Aufgaben je Generatorfamilie.
+`npm test` erzeugt 102 Varianten je aktiver Familie: **10.098 zufällig parametrisierte Aufgaben**. Zusätzlich werden Parser, Äquivalenzprüfung, Eingabemodell, Themenmehrfachauswahl, lokale Speicherung, Manifest, Offline-Cache und mobile Basisanforderungen geprüft.
 
-## iPhone-Installation
+`npm run build` ist bei dieser statischen Anwendung eine Produktionsprüfung. Sie validiert JavaScript-Syntax, Manifest, lokale Assets, externe Laufzeitressourcen und Service-Worker-Abdeckung.
 
-1. Veröffentlichte URL in Safari öffnen.
-2. Teilen → **Zum Home-Bildschirm**.
-3. **Hinzufügen**.
+## PWA, Offline und Updates
 
-Safari zeigt keine automatische Installationsabfrage. Für das erste vollständige Laden ist Internet nötig.
+`manifest.webmanifest` verwendet relative URLs und funktioniert damit unter dem GitHub-Pages-Basispfad `/KopfMatheDings/`. Der Service Worker cached die vollständige App-Shell und alle lokalen Module. Navigation nutzt online eine frische Version und offline die gecachte `index.html`; Assets werden aus dem Cache beantwortet und im Hintergrund aktualisiert. Alte Cache-Versionen werden bei Aktivierung gelöscht.
 
-## Offline und Updates
-
-Der Service Worker speichert Oberfläche, alle Themenmodule und Icons. Aufgaben entstehen vollständig auf dem Gerät. Bei einer neuen Version erscheint **Neu laden**. Local Storage enthält nur Einstellungen, Sitzungszähler und die letzten 20 Signaturen.
+Auf dem iPhone: URL in Safari öffnen → Teilen → **Zum Home-Bildschirm** → **Hinzufügen**.
 
 ## GitHub Pages
 
-Kein Build-Schritt nötig. Unter **Settings → Pages**: **Deploy from a branch**, Branch **main**, Ordner **/(root)**, dann **Save**.
+Die App benötigt keinen Build-Output. Pages wird aus Branch `main`, Ordner `/(root)` veröffentlicht. Alle Laufzeitpfade sind relativ; die erwartete URL lautet:
 
-## Struktur
+`https://lovisfarhood.github.io/KopfMatheDings/`
+
+## Projektstruktur
 
 ```text
-index.html / styles.css     Oberfläche und mobiles Design
-manifest.webmanifest / sw.js PWA und Offline-Cache
-src/core/                  Brüche, Parser, Checker, Zufall, Registry, Speicher
-src/ui/                    Eingabekomponenten
-src/topics/                Themenmodule und Generatoren
-tests/                     Node-Test-Suite
+index.html / styles.css          Oberfläche und mobiles Dark-Mode-Layout
+manifest.webmanifest / sw.js    Installation, Offline-Cache und Updates
+src/core/expression.js          sicherer Parser, Auswertung und Formel-Rendering
+src/core/checker.js             semantische Antwortprüfung
+src/core/registry.js            Themen, Presets, Metadaten und Balancing
+src/ui/input-model.js           Cursor-, Slot- und Matrixnavigation
+src/ui/inputs.js                drei Antwortmodi
+src/ui/math-keyboard.js         persistente KopfMathe-Tastatur
+src/topics/                     bestehende und neue Generatorfamilien
+scripts/check-static.mjs        statische Produktionsprüfung
+tests/                          automatisierte Regressionstests
 ```
-
-## Generator ergänzen
-
-Im passenden Themenmodul eine Generatorfamilie mit `generator(...)` und `makeTask(...)` ergänzen, in das exportierte Array aufnehmen und `npm test` ausführen. Neue Modulpfade zusätzlich in `sw.js` aufnehmen und die Cache-Version erhöhen. Generatoren greifen nie auf das DOM zu.
-
-## Bekannte Einschränkungen
-
-- Freie symbolische Formeleingabe wird bewusst durch robuste Zahlenfelder und Multiple Choice ersetzt.
-- Offline-Betrieb beginnt nach dem ersten vollständigen Online-Laden.
-- Es gibt absichtlich keine langfristige Leistungsanalyse oder Synchronisierung.
 
 ## Datenschutz
 
-Kein Backend, keine Datenbank, keine externen APIs, keine Analytics und kein Tracking.
+Einstellungen, letzte Aufgaben, Fehlerhistorie und „später wiederholen“ liegen ausschließlich in Local Storage. Die Einstellungen bieten einen vollständigen lokalen Reset. Es gibt keine externen Schriften, Skripte, Analysewerkzeuge, Werbung oder Datenübertragung.
+
+## Bewusste Grenzen
+
+- Die Äquivalenzprüfung ist ein sicherer domänenspezifischer Parser mit kontrollierten Stichproben, kein vollständiges Computer-Algebra-System. Verzweigungsabhängige Identitäten können daher bewusst abgelehnt werden.
+- Die Formeleingabe bleibt für mobile Geschwindigkeit linear editierbar und zeigt parallel die zweidimensionale Interpretation; sie ist kein vollständiges digitales Schreibpapier.
+- Die kuratierten Altklausur-Muster beruhen auf dem im Projektauftrag verfügbaren HM1-Kontext. Im Repository liegen keine Klausur-PDFs, daher werden keine konkrete Klausur oder Jahreszahl behauptet und keine Originalaufgaben kopiert.
+
+Wesentliche Änderungen sind in [CHANGELOG.md](./CHANGELOG.md) aufgeführt.

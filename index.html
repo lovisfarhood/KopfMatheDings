@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme:light)">
-  <meta name="theme-color" content="#111613" media="(prefers-color-scheme:dark)">
-  <meta name="description" content="Kurze Mathematik-Aufgaben von Grundlagen bis TUM HM1.">
+  <meta name="theme-color" content="#090a0c">
+  <meta name="description" content="Klausurnahe Mathematik schnell, mobil und offline trainieren.">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="KopfMathe">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icons/icon-180.png">
@@ -14,33 +14,162 @@
   <title>KopfMathe</title>
 </head>
 <body>
-<noscript>KopfMathe benötigt JavaScript. Danach funktioniert es auch offline.</noscript>
-<main class="shell">
-  <section id="start" class="view start" aria-labelledby="title">
-    <header class="brand"><div class="logo" aria-hidden="true">Σ</div><div><p>Kurz rechnen. Sicher werden.</p><h1 id="title">KopfMathe</h1></div></header>
-    <div class="card setup">
-      <label for="topic">Thema</label><select id="topic"></select>
-      <label for="difficulty">Schwierigkeit</label>
-      <select id="difficulty"><option value="auto">Automatisch gemischt</option><option value="locker">Locker</option><option value="hm1">HM1-Baustein</option><option value="exam">Klausurnah kompakt</option></select>
-      <p id="difficulty-hint" class="hint">45 % locker · 40 % HM1 · 15 % klausurnah</p>
-      <details><summary>Einstellungen</summary><label class="toggle"><span><strong>MATLAB-Verständnis</strong><small>Optional und standardmäßig aus</small></span><input id="matlab" type="checkbox"></label></details>
-      <button id="start-button" class="button primary big" type="button">Aufgabe starten</button>
+  <noscript>KopfMathe benötigt JavaScript. Danach funktioniert die App auch offline.</noscript>
+
+  <main class="shell">
+    <section id="start" class="view start-view" aria-labelledby="app-title">
+      <header class="brand">
+        <div class="brand-mark" aria-hidden="true">Σ</div>
+        <div>
+          <p class="eyebrow">Kurz rechnen. Sicher werden.</p>
+          <h1 id="app-title">KopfMathe</h1>
+        </div>
+        <span id="network-status" class="status-pill">Lokal</span>
+      </header>
+
+      <section class="setup-card" aria-labelledby="preset-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">01</p>
+            <h2 id="preset-title">Trainingsmix</h2>
+          </div>
+          <span id="topic-count" class="selection-count"></span>
+        </div>
+        <div id="presets" class="preset-row" aria-label="Themen-Presets"></div>
+
+        <details class="topic-panel" open>
+          <summary>Themen einzeln wählen</summary>
+          <div class="topic-toolbar">
+            <button id="select-all" class="text-button" type="button">Alle auswählen</button>
+            <button id="select-none" class="text-button" type="button">Alle abwählen</button>
+          </div>
+          <div id="topics" class="topic-groups"></div>
+        </details>
+      </section>
+
+      <section class="setup-card" aria-labelledby="difficulty-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">02</p>
+            <h2 id="difficulty-title">Schwierigkeit</h2>
+          </div>
+        </div>
+        <div id="difficulty-options" class="segmented four" role="radiogroup" aria-label="Schwierigkeit">
+          <button type="button" data-difficulty="basis" role="radio">Basis</button>
+          <button type="button" data-difficulty="standard" role="radio">Klausurstandard</button>
+          <button type="button" data-difficulty="plus" role="radio">Klausur+</button>
+          <button type="button" data-difficulty="transfer" role="radio">Transfer</button>
+        </div>
+        <p id="difficulty-hint" class="muted"></p>
+      </section>
+
+      <section class="setup-card" aria-labelledby="mode-title">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">03</p>
+            <h2 id="mode-title">Aufgabenmodus</h2>
+          </div>
+        </div>
+        <div id="mode-options" class="mode-options" role="radiogroup" aria-label="Aufgabenmodus">
+          <button class="mode-card" type="button" data-mode="head" role="radio">
+            <span class="mode-icon" aria-hidden="true">⌁</span>
+            <span><strong>Kopfmodus</strong><small>10–60 Sekunden, direkt lösen</small></span>
+          </button>
+          <button class="mode-card" type="button" data-mode="step" role="radio">
+            <span class="mode-icon" aria-hidden="true">↳</span>
+            <span><strong>Schrittmodus</strong><small>Zwischenergebnisse sichtbar halten</small></span>
+          </button>
+        </div>
+      </section>
+
+      <details class="settings-card">
+        <summary>Einstellungen & lokale Daten</summary>
+        <label class="setting-row">
+          <span><strong>MATLAB-Aufgaben</strong><small>Optional; standardmäßig deaktiviert</small></span>
+          <input id="matlab" type="checkbox">
+        </label>
+        <label class="setting-row">
+          <span><strong>Skip bestätigen</strong><small>Standardmäßig überspringt die App sofort mit Undo</small></span>
+          <input id="confirm-skip" type="checkbox">
+        </label>
+        <button id="reset-data" class="danger-button" type="button">Lern- und Einstellungsdaten zurücksetzen</button>
+      </details>
+
+      <button id="start-button" class="primary-button start-button" type="button">Training starten</button>
+      <p id="start-message" class="start-message" aria-live="polite"></p>
+      <p class="privacy">Kein Konto · kein Tracking · kein Backend · nach dem ersten Laden offline</p>
+    </section>
+
+    <section id="exercise" class="view exercise-view" hidden aria-labelledby="task-title">
+      <header class="exercise-header">
+        <button id="back" class="icon-button" type="button" aria-label="Zur Trainingsauswahl">←</button>
+        <div class="exercise-heading">
+          <span id="meta" class="exercise-meta"></span>
+          <strong id="kind"></strong>
+        </div>
+        <div id="score" class="score" aria-label="Sitzungsstand"></div>
+      </header>
+
+      <article class="task-card">
+        <div class="task-tags">
+          <span id="time" class="tag"></span>
+          <span id="task-mode" class="tag"></span>
+          <span id="answer-mode" class="tag"></span>
+        </div>
+        <div id="step-progress" class="step-progress" hidden></div>
+        <h2 id="task-title" class="sr-only">Aufgabe</h2>
+        <div id="prompt" class="prompt"></div>
+        <div id="step-prompt" class="step-prompt" hidden></div>
+
+        <form id="form" novalidate>
+          <div id="inputs"></div>
+          <button class="sr-only" type="submit">Antwort prüfen</button>
+        </form>
+
+        <div id="feedback" class="feedback" role="status" aria-live="polite" hidden></div>
+        <section id="hint-panel" class="hint-panel" aria-live="polite" hidden></section>
+        <section id="solution" class="solution" hidden>
+          <p class="solution-label">Kompaktlösung</p>
+          <div id="solution-text"></div>
+        </section>
+
+        <div class="task-actions" aria-label="Aufgabenaktionen">
+          <button id="hint-button" class="quiet-button" type="button">Hinweis</button>
+          <button id="skip-button" class="quiet-button" type="button">Überspringen</button>
+          <button id="solution-button" class="quiet-button" type="button">Lösung</button>
+        </div>
+
+        <div id="result-actions" class="result-actions" hidden>
+          <button id="similar" class="secondary-button" type="button">Ähnliche Aufgabe</button>
+          <button id="easier" class="secondary-button" type="button">Einfachere Vorstufe</button>
+          <button id="harder" class="secondary-button" type="button">Schwerere Variante</button>
+          <button id="later" class="secondary-button" type="button">Später wiederholen</button>
+          <button id="next" class="primary-button" type="button">Nächste Aufgabe</button>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <section id="workspace-dock" class="workspace-dock" hidden aria-label="Zwischenergebnisse">
+    <div class="workspace-inner">
+      <div id="step-chips" class="step-chips"></div>
+      <div class="workspace-actions">
+        <button id="save-step" class="dock-button" type="button">+ Ergebnis merken</button>
+        <button id="toggle-step-mode" class="dock-button" type="button" hidden></button>
+      </div>
     </div>
-    <p class="privacy">Keine Anmeldung · kein Tracking · nach dem ersten Laden offline</p>
   </section>
-  <section id="exercise" class="view" hidden aria-labelledby="task-title">
-    <header class="top"><button id="back" class="icon" type="button" aria-label="Zurück">←</button><div id="meta" class="meta"></div><div id="score" class="score">0 ✓ · 0 ✕</div></header>
-    <article class="card task">
-      <div class="task-meta"><span id="time"></span><span id="kind"></span></div>
-      <h2 id="task-title" class="sr-only">Aufgabe</h2><div id="prompt" class="prompt"></div>
-      <form id="form" novalidate><div id="inputs"></div><button id="check" class="button primary big" type="submit">Prüfen</button></form>
-      <div id="feedback" class="feedback" aria-live="polite" hidden></div>
-      <div id="actions" class="actions" hidden><button id="retry" class="button secondary" type="button">Noch einmal versuchen</button><button id="solution-button" class="button ghost" type="button">Lösung zeigen</button><button id="next" class="button primary" type="button">Nächste Aufgabe</button></div>
-      <section id="solution" class="solution" hidden><h3>Kurzlösung</h3><div id="solution-text"></div></section>
-    </article>
-  </section>
-</main>
-<div id="update" class="update" hidden><span>Neue Version verfügbar.</span><button id="reload" class="button secondary" type="button">Neu laden</button></div>
-<script type="module" src="./src/app.js"></script>
+  <section id="keyboard-dock" class="keyboard-dock" hidden></section>
+
+  <div id="undo-toast" class="toast" hidden role="status">
+    <span>Aufgabe übersprungen.</span>
+    <button id="undo-skip" type="button">Rückgängig</button>
+  </div>
+  <div id="update" class="update-banner" hidden>
+    <span>Eine neue Offline-Version ist bereit.</span>
+    <button id="reload" type="button">Neu laden</button>
+  </div>
+
+  <script type="module" src="./src/app.js"></script>
 </body>
 </html>

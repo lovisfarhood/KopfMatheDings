@@ -1,1 +1,14 @@
-{"name":"kopfmathe","version":"1.0.0","private":true,"type":"module","scripts":{"test":"node --test"},"engines":{"node":">=20"}}
+{
+  "name": "kopfmathe",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check-static.mjs",
+    "build": "npm run check"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

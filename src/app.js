@@ -1,13 +1,647 @@
-import{checkTaskAnswer}from"./core/checker.js";import{generateTask,TOPICS,topicById}from"./core/registry.js";import{load,save}from"./core/storage.js";import{collect,disable,renderInputs}from"./ui/inputs.js";
-const $=s=>document.querySelector(s),el={start:$("#start"),exercise:$("#exercise"),topic:$("#topic"),difficulty:$("#difficulty"),hint:$("#difficulty-hint"),matlab:$("#matlab"),startButton:$("#start-button"),back:$("#back"),meta:$("#meta"),score:$("#score"),time:$("#time"),kind:$("#kind"),prompt:$("#prompt"),form:$("#form"),inputs:$("#inputs"),check:$("#check"),feedback:$("#feedback"),actions:$("#actions"),retry:$("#retry"),solutionButton:$("#solution-button"),next:$("#next"),solution:$("#solution"),solutionText:$("#solution-text"),update:$("#update"),reload:$("#reload")};
-const state=load();let task=null,checked=false,counted=false;
-function topics(){const current=el.topic.value||state.topic;el.topic.replaceChildren();TOPICS.filter(x=>x.enabled||state.matlab).forEach(x=>{const o=document.createElement("option");o.value=x.id;o.textContent=x.label;el.topic.append(o)});el.topic.value=[...el.topic.options].some(x=>x.value===current)?current:"mixed"}
-function persist(){state.topic=el.topic.value;state.difficulty=el.difficulty.value;state.matlab=el.matlab.checked;save(state)}
-function score(){el.score.textContent=`${state.score.correct} ✓ · ${state.score.wrong} ✕`;el.score.setAttribute("aria-label",`${state.score.correct} richtig, ${state.score.wrong} falsch`)}
-function feedback(type,text){el.feedback.className=`feedback ${type}`;el.feedback.textContent=text;el.feedback.hidden=false}
-function next(){persist();task=generateTask({topic:state.topic,difficulty:state.difficulty,history:state.recent,matlabEnabled:state.matlab});state.recent.push(task.signature);state.recent=state.recent.slice(-20);checked=false;counted=false;el.meta.textContent=`${topicById(task.topic).short} · ${{locker:"Locker",hm1:"HM1-Baustein",exam:"Klausurnah"}[task.difficulty]}`;el.time.textContent=`${task.estimatedSeconds} s`;el.kind.textContent=task.title;el.prompt.innerHTML=task.prompt;el.solutionText.innerHTML=task.explanation;el.feedback.hidden=true;el.actions.hidden=true;el.solution.hidden=true;el.check.hidden=false;const first=renderInputs(el.inputs,task.inputSpec);requestAnimationFrame(()=>first?.focus({preventScroll:true}));save(state)}
-function submit(e){e.preventDefault();if(checked){next();return}const result=checkTaskAnswer(task,collect(el.inputs,task.inputSpec));if(!result.valid){feedback("neutral",result.message);return}checked=true;if(!counted){state.score[result.correct?"correct":"wrong"]++;counted=true}score();save(state);feedback(result.correct?"ok":"bad",result.correct?"Richtig! Stark.":"Noch nicht richtig.");el.actions.hidden=false;el.retry.hidden=result.correct;el.solutionButton.hidden=false;el.check.hidden=true;disable(el.inputs,result.correct);if(result.correct)el.next.focus()}
-function retry(){checked=false;el.feedback.hidden=true;el.actions.hidden=true;el.solution.hidden=true;el.check.hidden=false;disable(el.inputs,false);el.inputs.querySelector("input")?.focus()}
-function hints(){el.hint.textContent={auto:"45 % locker · 40 % HM1 · 15 % klausurnah",locker:"Kleine Zahlen und meist ein Schritt.",hm1:"Kurze typische HM1-Rechenbausteine.",exam:"Klausurkonzepte mit einfachen Zahlen."}[el.difficulty.value]}
-el.difficulty.value=state.difficulty;el.matlab.checked=state.matlab;topics();el.topic.value=state.topic||"mixed";hints();score();el.startButton.addEventListener("click",()=>{el.start.hidden=true;el.exercise.hidden=false;next()});el.back.addEventListener("click",()=>{el.exercise.hidden=true;el.start.hidden=false;el.startButton.focus()});el.form.addEventListener("submit",submit);el.retry.addEventListener("click",retry);el.solutionButton.addEventListener("click",()=>{el.solution.hidden=false;el.solutionButton.hidden=true;el.solution.scrollIntoView({behavior:matchMedia("(prefers-reduced-motion:reduce)").matches?"auto":"smooth",block:"nearest"})});el.next.addEventListener("click",next);el.topic.addEventListener("change",persist);el.difficulty.addEventListener("change",()=>{hints();persist()});el.matlab.addEventListener("change",()=>{state.matlab=el.matlab.checked;topics();persist()});
-if("serviceWorker"in navigator&&location.protocol!=="file:")navigator.serviceWorker.register("./sw.js").then(reg=>{if(reg.waiting)el.update.hidden=false;reg.addEventListener("updatefound",()=>reg.installing?.addEventListener("statechange",()=>{if(reg.installing?.state==="installed"&&navigator.serviceWorker.controller)el.update.hidden=false}));el.reload.addEventListener("click",()=>{reg.waiting?.postMessage({type:"SKIP_WAITING"});location.reload()})}).catch(e=>console.info("Offline-Modus nicht registriert",e));
+import { checkTaskAnswer } from "./core/checker.js";
+import {
+  generateTask,
+  PRESETS,
+  TOPICS,
+  topicById,
+  topicsForWeaknesses
+} from "./core/registry.js";
+import { defaults, load, resetStorage, save } from "./core/storage.js";
+import { renderInputs } from "./ui/inputs.js";
+import { MathKeyboard } from "./ui/math-keyboard.js";
+
+const $ = selector => document.querySelector(selector);
+const elements = {
+  start: $("#start"),
+  exercise: $("#exercise"),
+  network: $("#network-status"),
+  presets: $("#presets"),
+  topics: $("#topics"),
+  topicCount: $("#topic-count"),
+  selectAll: $("#select-all"),
+  selectNone: $("#select-none"),
+  difficultyOptions: $("#difficulty-options"),
+  difficultyHint: $("#difficulty-hint"),
+  modeOptions: $("#mode-options"),
+  matlab: $("#matlab"),
+  confirmSkip: $("#confirm-skip"),
+  resetData: $("#reset-data"),
+  startButton: $("#start-button"),
+  startMessage: $("#start-message"),
+  back: $("#back"),
+  meta: $("#meta"),
+  kind: $("#kind"),
+  score: $("#score"),
+  time: $("#time"),
+  taskMode: $("#task-mode"),
+  answerMode: $("#answer-mode"),
+  stepProgress: $("#step-progress"),
+  prompt: $("#prompt"),
+  stepPrompt: $("#step-prompt"),
+  form: $("#form"),
+  inputs: $("#inputs"),
+  feedback: $("#feedback"),
+  hintPanel: $("#hint-panel"),
+  solution: $("#solution"),
+  solutionText: $("#solution-text"),
+  hintButton: $("#hint-button"),
+  skipButton: $("#skip-button"),
+  solutionButton: $("#solution-button"),
+  resultActions: $("#result-actions"),
+  similar: $("#similar"),
+  easier: $("#easier"),
+  harder: $("#harder"),
+  later: $("#later"),
+  next: $("#next"),
+  workspaceDock: $("#workspace-dock"),
+  stepChips: $("#step-chips"),
+  saveStep: $("#save-step"),
+  toggleStepMode: $("#toggle-step-mode"),
+  keyboardDock: $("#keyboard-dock"),
+  undoToast: $("#undo-toast"),
+  undoSkip: $("#undo-skip"),
+  update: $("#update"),
+  reload: $("#reload")
+};
+
+const DIFFICULTY_LABELS = Object.freeze({
+  basis: "Basis",
+  standard: "Klausurstandard",
+  plus: "Klausur+",
+  transfer: "Transfer / Knobeln"
+});
+const DIFFICULTY_HINTS = Object.freeze({
+  basis: "Ein klarer Kernschritt, kleine Zahlen – grundlegend, aber nicht banal.",
+  standard: "Typische HM1-Methoden und realistische Klausurbausteine.",
+  plus: "Mehr Verknüpfungen, weniger offensichtliche Wege, höhere Fehlerdichte.",
+  transfer: "Strategie und Einsicht statt bloß größerer Zahlen."
+});
+const ANSWER_MODE_LABELS = Object.freeze({
+  "multiple-choice": "Auswahl",
+  "structured-inline": "Strukturiert",
+  "free-expression": "Freie Eingabe"
+});
+const DIFFICULTY_ORDER = ["basis", "standard", "plus", "transfer"];
+
+let state = load();
+let task = null;
+let controller = null;
+let keyboard = null;
+let stepIndex = -1;
+let stepChips = [];
+let directAnswer = false;
+let hintIndex = 0;
+let usedHint = false;
+let attemptedWrong = false;
+let outcomeFinalized = false;
+let undoSnapshot = null;
+let undoTimer = null;
+
+function persist() {
+  state.matlab = elements.matlab.checked;
+  state.confirmSkip = elements.confirmSkip.checked;
+  save(state);
+}
+
+function enabledTopics() {
+  return TOPICS.filter(topic => topic.enabled || (topic.id === "matlab" && state.matlab));
+}
+
+function renderPresets() {
+  elements.presets.replaceChildren();
+  for (const [id, preset] of Object.entries(PRESETS)) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "preset-chip";
+    button.textContent = preset.label;
+    button.dataset.preset = id;
+    const weakTopics = id === "weaknesses" ? topicsForWeaknesses(state.outcomes) : null;
+    const unavailable = id === "weaknesses" && !weakTopics.length;
+    button.disabled = unavailable;
+    if (unavailable) button.title = "Nach ersten Fehlern verfügbar";
+    button.setAttribute("aria-pressed", String(state.activePreset === id));
+    button.addEventListener("click", () => {
+      state.selectedTopics = [...(id === "weaknesses" ? weakTopics : preset.topics)];
+      state.activePreset = id;
+      renderStartControls();
+      persist();
+    });
+    elements.presets.append(button);
+  }
+}
+
+function renderTopics() {
+  elements.topics.replaceChildren();
+  const grouped = new Map();
+  for (const topic of enabledTopics()) {
+    if (!grouped.has(topic.group)) grouped.set(topic.group, []);
+    grouped.get(topic.group).push(topic);
+  }
+  for (const [group, topics] of grouped) {
+    const section = document.createElement("section");
+    section.className = "topic-group";
+    const heading = document.createElement("h3");
+    heading.textContent = group;
+    const chips = document.createElement("div");
+    chips.className = "topic-chips";
+    for (const topic of topics) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "topic-chip";
+      button.textContent = topic.short;
+      const active = state.selectedTopics.includes(topic.id);
+      button.setAttribute("aria-pressed", String(active));
+      button.addEventListener("click", () => {
+        state.selectedTopics = active
+          ? state.selectedTopics.filter(id => id !== topic.id)
+          : [...state.selectedTopics, topic.id];
+        state.activePreset = "custom";
+        renderStartControls();
+        persist();
+      });
+      chips.append(button);
+    }
+    section.append(heading, chips);
+    elements.topics.append(section);
+  }
+}
+
+function renderDifficulty() {
+  elements.difficultyOptions.querySelectorAll("[data-difficulty]").forEach(button => {
+    const selected = button.dataset.difficulty === state.difficulty;
+    button.setAttribute("aria-checked", String(selected));
+    button.classList.toggle("is-selected", selected);
+  });
+  elements.difficultyHint.textContent = DIFFICULTY_HINTS[state.difficulty];
+}
+
+function renderModes() {
+  elements.modeOptions.querySelectorAll("[data-mode]").forEach(button => {
+    const selected = button.dataset.mode === state.mode;
+    button.setAttribute("aria-checked", String(selected));
+    button.classList.toggle("is-selected", selected);
+  });
+}
+
+function renderStartControls() {
+  state.selectedTopics = state.selectedTopics.filter(id => enabledTopics().some(topic => topic.id === id));
+  renderPresets();
+  renderTopics();
+  renderDifficulty();
+  renderModes();
+  elements.topicCount.textContent = `${state.selectedTopics.length} aktiv`;
+  elements.startButton.disabled = state.selectedTopics.length === 0;
+  elements.startMessage.textContent = state.selectedTopics.length ? "" : "Wähle mindestens ein Thema oder ein Preset.";
+}
+
+function updateNetworkStatus() {
+  const online = navigator.onLine;
+  elements.network.textContent = online ? "Online" : "Offline bereit";
+  elements.network.classList.toggle("is-offline", !online);
+}
+
+function updateScore() {
+  elements.score.textContent = `${state.score.correct} ✓  ${state.score.wrong} ✕`;
+  elements.score.setAttribute("aria-label", `${state.score.correct} richtig, ${state.score.wrong} falsch`);
+}
+
+function activeUnit() {
+  if (!directAnswer && stepIndex >= 0 && task?.steps?.[stepIndex]) return task.steps[stepIndex];
+  return task;
+}
+
+function isStructuredStep() {
+  return !directAnswer && stepIndex >= 0 && task?.steps?.length;
+}
+
+function resetAttemptState() {
+  hintIndex = 0;
+  usedHint = false;
+  attemptedWrong = false;
+  outcomeFinalized = false;
+  stepChips = [];
+  directAnswer = false;
+  stepIndex = state.mode === "step" && task.steps?.length ? 0 : -1;
+}
+
+function addRecent(currentTask) {
+  state.recent.push({
+    signature: currentTask.signature,
+    generatorId: currentTask.generatorId,
+    topic: currentTask.topic
+  });
+  state.recent = state.recent.slice(-30);
+}
+
+function createTask(options = {}) {
+  task = generateTask({
+    topics: state.selectedTopics,
+    difficulty: options.difficulty || state.difficulty,
+    mode: state.mode,
+    history: state.recent,
+    outcomes: state.outcomes,
+    matlabEnabled: state.matlab,
+    forcedGeneratorId: options.forcedGeneratorId || null,
+    seed: options.seed
+  });
+  addRecent(task);
+  resetAttemptState();
+  persist();
+  renderTask();
+}
+
+function feedback(kind, message) {
+  elements.feedback.hidden = false;
+  elements.feedback.className = `feedback is-${kind}`;
+  elements.feedback.textContent = message;
+}
+
+function clearFeedback() {
+  elements.feedback.hidden = true;
+  elements.feedback.textContent = "";
+  elements.hintPanel.hidden = true;
+  elements.hintPanel.replaceChildren();
+  elements.solution.hidden = true;
+  elements.resultActions.hidden = true;
+}
+
+function renderStepProgress() {
+  if (!task.steps?.length) {
+    elements.stepProgress.hidden = true;
+    return;
+  }
+  elements.stepProgress.hidden = false;
+  elements.stepProgress.replaceChildren();
+  task.steps.forEach((_step, index) => {
+    const dot = document.createElement("span");
+    dot.className = "step-dot";
+    dot.classList.toggle("is-done", isStructuredStep() && index < stepIndex);
+    dot.classList.toggle("is-current", isStructuredStep() && index === stepIndex);
+    dot.textContent = String(index + 1);
+    elements.stepProgress.append(dot);
+  });
+  const label = document.createElement("span");
+  label.textContent = directAnswer || stepIndex < 0 ? "Direktantwort" : `Schritt ${stepIndex + 1} von ${task.steps.length}`;
+  elements.stepProgress.append(label);
+}
+
+function renderWorkspace() {
+  elements.stepChips.replaceChildren();
+  for (const [index, chip] of stepChips.entries()) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "step-chip";
+    const insert = document.createElement("button");
+    insert.type = "button";
+    insert.className = "chip-value";
+    insert.textContent = chip.label;
+    insert.title = `${chip.value} in die aktive Position einsetzen`;
+    insert.addEventListener("click", () => controller?.insertValue(chip.value));
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "chip-action";
+    edit.textContent = "↗";
+    edit.setAttribute("aria-label", `${chip.label} bearbeiten`);
+    edit.addEventListener("click", () => {
+      controller?.insertValue(chip.value);
+      stepChips.splice(index, 1);
+      renderWorkspace();
+    });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "chip-action";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `${chip.label} löschen`);
+    remove.addEventListener("click", () => {
+      stepChips.splice(index, 1);
+      renderWorkspace();
+    });
+    wrapper.append(insert, edit, remove);
+    elements.stepChips.append(wrapper);
+  }
+  if (!stepChips.length) {
+    const empty = document.createElement("span");
+    empty.className = "workspace-empty";
+    empty.textContent = state.mode === "step" ? "Zwischenergebnisse erscheinen hier." : "Optional ein Ergebnis merken.";
+    elements.stepChips.append(empty);
+  }
+  elements.toggleStepMode.hidden = !task.steps?.length;
+  elements.toggleStepMode.textContent = isStructuredStep() ? "Direktantwort" : "In Schritten lösen";
+}
+
+function renderTask() {
+  clearFeedback();
+  const unit = activeUnit();
+  const topic = topicById(task.topic);
+  elements.meta.textContent = `${topic.short} · ${DIFFICULTY_LABELS[task.difficulty]}`;
+  elements.kind.textContent = task.title;
+  elements.time.textContent = task.estimatedSeconds >= 60 ? `${Math.ceil(task.estimatedSeconds / 60)} min` : `≈ ${task.estimatedSeconds} s`;
+  elements.taskMode.textContent = state.mode === "step" ? "Schrittmodus" : "Kopfmodus";
+  const currentAnswerMode = unit.answerMode || (unit.inputSpec.type === "choice" ? "multiple-choice" : ["fields", "matrix"].includes(unit.inputSpec.type) ? "structured-inline" : "free-expression");
+  elements.answerMode.textContent = ANSWER_MODE_LABELS[currentAnswerMode] || ANSWER_MODE_LABELS[task.answerMode];
+  elements.prompt.innerHTML = task.prompt;
+  elements.stepPrompt.hidden = !isStructuredStep();
+  elements.stepPrompt.textContent = isStructuredStep() ? unit.prompt : "";
+  elements.solutionText.innerHTML = unit.explanation || task.explanation;
+  elements.hintButton.textContent = "Hinweis";
+  elements.hintButton.disabled = false;
+  elements.solutionButton.disabled = false;
+  renderStepProgress();
+
+  controller = renderInputs(elements.inputs, unit.inputSpec, {
+    onSubmit: submitAnswer,
+    onChange: () => {
+      if (!elements.feedback.hidden && elements.feedback.classList.contains("is-neutral")) clearFeedback();
+    }
+  });
+  keyboard.setController(controller);
+  renderWorkspace();
+  updateScore();
+  requestAnimationFrame(() => controller.focus());
+}
+
+function outcomeStatus() {
+  if (attemptedWrong) return "wrong";
+  if (usedHint) return "hinted";
+  return "correct";
+}
+
+function finalizeOutcome(status = outcomeStatus()) {
+  if (outcomeFinalized || !task) return;
+  outcomeFinalized = true;
+  state.outcomes.push({
+    generatorId: task.generatorId,
+    topic: task.topic,
+    difficulty: task.difficulty,
+    status,
+    at: Date.now()
+  });
+  state.outcomes = state.outcomes.slice(-150);
+  if (status === "correct") state.score.correct += 1;
+  else if (status === "hinted") {
+    state.score.correct += 1;
+    state.score.hinted += 1;
+  } else if (status === "wrong") state.score.wrong += 1;
+  else if (status === "skipped") state.score.skipped += 1;
+  else if (status === "solution") state.score.solution += 1;
+  persist();
+  updateScore();
+  renderPresets();
+}
+
+function addAutomaticChip(step) {
+  const value = step.chipValue || controller.currentValue();
+  if (!value) return;
+  stepChips.push({ label: step.chipLabel || String(value).slice(0, 28), value: String(value) });
+  renderWorkspace();
+}
+
+function showCompleted(correct = true) {
+  controller.setDisabled(correct);
+  elements.resultActions.hidden = false;
+  elements.next.focus({ preventScroll: true });
+}
+
+function submitAnswer(event) {
+  event?.preventDefault?.();
+  if (!task) return;
+  const unit = activeUnit();
+  const result = checkTaskAnswer(unit, controller.collect());
+  if (!result.valid) {
+    feedback("neutral", result.message);
+    return;
+  }
+  if (!result.correct) {
+    attemptedWrong = true;
+    feedback("bad", "Noch nicht richtig. Prüfe Struktur, Vorzeichen und Klammern.");
+    elements.resultActions.hidden = false;
+    return;
+  }
+
+  if (isStructuredStep()) {
+    addAutomaticChip(unit);
+    if (stepIndex < task.steps.length - 1) {
+      stepIndex += 1;
+      renderTask();
+      feedback("ok", "Schritt korrekt und als Zwischenergebnis gespeichert.");
+      return;
+    }
+  }
+
+  feedback("ok", usedHint ? "Richtig – mit Hinweis gelöst." : "Richtig.");
+  finalizeOutcome();
+  showCompleted(true);
+}
+
+function showHint() {
+  const unit = activeUnit();
+  const hints = unit.hints?.length ? unit.hints : task.hints;
+  const nextHint = hints[Math.min(hintIndex, hints.length - 1)];
+  if (!nextHint) return;
+  usedHint = true;
+  hintIndex += 1;
+  elements.hintPanel.hidden = false;
+  const label = document.createElement("strong");
+  label.textContent = `Hinweis ${Math.min(hintIndex, hints.length)} von ${hints.length}`;
+  const text = document.createElement("p");
+  text.textContent = nextHint;
+  elements.hintPanel.replaceChildren(label, text);
+  elements.hintButton.textContent = hintIndex < hints.length ? "Nächster Hinweis" : "Hinweise ausgeschöpft";
+  elements.hintButton.disabled = hintIndex >= hints.length;
+}
+
+function showSolution() {
+  elements.solution.hidden = false;
+  elements.solutionButton.disabled = true;
+  controller.setDisabled(true);
+  finalizeOutcome("solution");
+  elements.resultActions.hidden = false;
+  elements.solution.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+}
+
+function cloneState() {
+  return JSON.parse(JSON.stringify(state));
+}
+
+function skipTask() {
+  if (state.confirmSkip && !window.confirm("Diese Aufgabe überspringen?")) return;
+  undoSnapshot = {
+    state: cloneState(),
+    task,
+    stepIndex,
+    stepChips: JSON.parse(JSON.stringify(stepChips)),
+    directAnswer,
+    hintIndex,
+    usedHint,
+    attemptedWrong,
+    outcomeFinalized
+  };
+  finalizeOutcome("skipped");
+  createTask();
+  showUndo();
+}
+
+function showUndo() {
+  clearTimeout(undoTimer);
+  elements.undoToast.hidden = false;
+  undoTimer = setTimeout(() => {
+    elements.undoToast.hidden = true;
+    undoSnapshot = null;
+  }, 6500);
+}
+
+function undoSkip() {
+  if (!undoSnapshot) return;
+  clearTimeout(undoTimer);
+  state = undoSnapshot.state;
+  task = undoSnapshot.task;
+  stepIndex = undoSnapshot.stepIndex;
+  stepChips = undoSnapshot.stepChips;
+  directAnswer = undoSnapshot.directAnswer;
+  hintIndex = undoSnapshot.hintIndex;
+  usedHint = undoSnapshot.usedHint;
+  attemptedWrong = undoSnapshot.attemptedWrong;
+  outcomeFinalized = undoSnapshot.outcomeFinalized;
+  undoSnapshot = null;
+  elements.undoToast.hidden = true;
+  persist();
+  renderTask();
+}
+
+function moveDifficulty(direction) {
+  const index = DIFFICULTY_ORDER.indexOf(task.difficulty);
+  return DIFFICULTY_ORDER[Math.max(0, Math.min(DIFFICULTY_ORDER.length - 1, index + direction))];
+}
+
+function continueWith(options = {}) {
+  if (!outcomeFinalized) finalizeOutcome(attemptedWrong ? "wrong" : usedHint ? "hinted" : "skipped");
+  createTask(options);
+}
+
+function rememberForLater() {
+  if (!state.later.some(item => item.signature === task.signature)) {
+    state.later.push({ signature: task.signature, generatorId: task.generatorId, topic: task.topic, difficulty: task.difficulty });
+  }
+  persist();
+  continueWith();
+}
+
+function saveCurrentStep() {
+  const value = controller?.currentValue()?.trim();
+  if (!value) {
+    feedback("neutral", "Gib zuerst ein Zwischenergebnis ein.");
+    return;
+  }
+  stepChips.push({ label: value.length > 24 ? `${value.slice(0, 23)}…` : value, value });
+  renderWorkspace();
+  feedback("neutral", "Zwischenergebnis gespeichert. Tippe den Chip an, um es wieder einzusetzen.");
+}
+
+function toggleStepMode() {
+  if (!task.steps?.length) return;
+  directAnswer = isStructuredStep();
+  stepIndex = directAnswer ? -1 : 0;
+  hintIndex = 0;
+  renderTask();
+}
+
+function showExercise() {
+  elements.start.hidden = true;
+  elements.exercise.hidden = false;
+  elements.workspaceDock.hidden = false;
+  elements.keyboardDock.hidden = false;
+  document.body.classList.add("is-training");
+  createTask();
+}
+
+function showStart() {
+  elements.exercise.hidden = true;
+  elements.workspaceDock.hidden = true;
+  elements.keyboardDock.hidden = true;
+  elements.start.hidden = false;
+  document.body.classList.remove("is-training");
+  renderStartControls();
+  elements.startButton.focus({ preventScroll: true });
+}
+
+function bindEvents() {
+  elements.selectAll.addEventListener("click", () => {
+    state.selectedTopics = enabledTopics().map(topic => topic.id);
+    state.activePreset = "custom";
+    renderStartControls();
+    persist();
+  });
+  elements.selectNone.addEventListener("click", () => {
+    state.selectedTopics = [];
+    state.activePreset = "custom";
+    renderStartControls();
+    persist();
+  });
+  elements.difficultyOptions.addEventListener("click", event => {
+    const button = event.target.closest("[data-difficulty]");
+    if (!button) return;
+    state.difficulty = button.dataset.difficulty;
+    renderDifficulty();
+    persist();
+  });
+  elements.modeOptions.addEventListener("click", event => {
+    const button = event.target.closest("[data-mode]");
+    if (!button) return;
+    state.mode = button.dataset.mode;
+    renderModes();
+    persist();
+  });
+  elements.matlab.addEventListener("change", () => {
+    state.matlab = elements.matlab.checked;
+    if (!state.matlab) state.selectedTopics = state.selectedTopics.filter(topic => topic !== "matlab");
+    renderStartControls();
+    persist();
+  });
+  elements.confirmSkip.addEventListener("change", persist);
+  elements.resetData.addEventListener("click", () => {
+    if (!window.confirm("Alle lokalen Einstellungen, Ergebnisse und Fehlerdaten löschen?")) return;
+    resetStorage();
+    state = JSON.parse(JSON.stringify(defaults));
+    elements.matlab.checked = state.matlab;
+    elements.confirmSkip.checked = state.confirmSkip;
+    renderStartControls();
+  });
+  elements.startButton.addEventListener("click", showExercise);
+  elements.back.addEventListener("click", showStart);
+  elements.form.addEventListener("submit", submitAnswer);
+  elements.hintButton.addEventListener("click", showHint);
+  elements.skipButton.addEventListener("click", skipTask);
+  elements.solutionButton.addEventListener("click", showSolution);
+  elements.similar.addEventListener("click", () => continueWith({ forcedGeneratorId: task.generatorId }));
+  elements.easier.addEventListener("click", () => continueWith({ difficulty: moveDifficulty(-1) }));
+  elements.harder.addEventListener("click", () => continueWith({ difficulty: moveDifficulty(1) }));
+  elements.later.addEventListener("click", rememberForLater);
+  elements.next.addEventListener("click", () => continueWith());
+  elements.saveStep.addEventListener("click", saveCurrentStep);
+  elements.toggleStepMode.addEventListener("click", toggleStepMode);
+  elements.undoSkip.addEventListener("click", undoSkip);
+  window.addEventListener("online", updateNetworkStatus);
+  window.addEventListener("offline", updateNetworkStatus);
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator) || location.protocol === "file:") return;
+  navigator.serviceWorker.register("./sw.js").then(registration => {
+    if (registration.waiting) elements.update.hidden = false;
+    registration.addEventListener("updatefound", () => registration.installing?.addEventListener("statechange", () => {
+      if (registration.installing?.state === "installed" && navigator.serviceWorker.controller) elements.update.hidden = false;
+    }));
+    elements.reload.addEventListener("click", () => {
+      registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+      location.reload();
+    });
+  }).catch(error => console.info("Offline-Modus konnte nicht registriert werden", error));
+}
+
+elements.matlab.checked = state.matlab;
+elements.confirmSkip.checked = state.confirmSkip;
+keyboard = new MathKeyboard(elements.keyboardDock);
+bindEvents();
+renderStartControls();
+updateNetworkStatus();
+updateScore();
+registerServiceWorker();
