@@ -6,6 +6,7 @@
 
 - `.keyboard-dock` bleibt als äußere feste Komponente erhalten; `.math-keyboard` wird nur noch innen gerendert
 - Workspace, Tastatur, Safe Area und Aufgabenpadding teilen eine getestete Dock-Geometrie
+- das Aufgabenpadding reserviert die iOS-Safe-Area nun zusätzlich zu Tastatur und Workspace
 - Standard-`taskModes` ist `["head"]`; nur vier echte Mehrschrittfamilien führen `step`
 - ungeeignete Schritt-Auswahl liefert einen kontrollierten Zustand statt einer fachfremden Grundrechenaufgabe
 - 1.000 zufällige Schrittaufgaben garantieren mindestens zwei vollständig validierbare Schritte
@@ -38,10 +39,12 @@
 
 ### Prüfung
 
-- 182 automatisierte Tests
+- 202 automatisierte Tests
 - 10.000 generierte Aufgaben (100 je aktiver Familie)
 - 1.600 unabhängige Generatorvarianten
-- fünf mobile Dock-Geometrien einschließlich vier iPhone-Viewports und Android
+- sieben mobile Dock-Geometrien von iPhone SE bis Pro Max einschließlich Querformat
+- App und Tastatur laufen in einem echten Test-DOM; Service-Worker-Install, -Activate, -Fetch und Offline-Fallback werden ausgeführt
+- statische Produktionsprüfung aller 35 Runtime-Module, 42 verpflichtenden Offline-Assets und des GitHub-Pages-Unterpfads
 - Cloud-Browser-Sichtprüfung nicht ausgeführt: Navigation zu `127.0.0.1:8080` wurde durch die Browser-Sicherheitsrichtlinie blockiert
 
 ## 2.0.0 – 2026-07-17

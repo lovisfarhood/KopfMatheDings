@@ -78,31 +78,35 @@ Jede aktive Familie weist genau die eine Stufe aus, die ihre aktuelle Generatorl
 
 Damit kann eine unveränderte Aufgabe nicht unter vier verschiedenen Labels erscheinen. Transferfamilien verlangen Methodenwahl, Strategie, Fehleranalyse oder versteckte Struktur und werden nicht nur durch größere Zahlen schwerer.
 
-Das vollständige Familienaudit steht in [TASK_AUDIT.md](./TASK_AUDIT.md).
+Eine kompakte Verteilung steht in [GENERATOR_OVERVIEW.md](./GENERATOR_OVERVIEW.md), das vollständige Familienaudit in [TASK_AUDIT.md](./TASK_AUDIT.md).
 
 ## Tests
 
 ```bash
-npm test
-npm run build
+npm install
+npm run verify
 ```
 
-Der vollständige Lauf umfasst aktuell 182 Testfälle:
+Der vollständige Lauf umfasst aktuell 202 Testfälle:
 
 - 100 Varianten je aktiver Familie = 10.000 generierte Aufgaben
 - korrekte Musterantwort und konstruierte Falschantwort je Variante
 - 1.000 zufällige Schrittaufgaben
 - 1.600 unabhängige mathematische Referenzprüfungen über 16 Familien
 - Parser-, Gleichungs-, Form- und Definitionsbereichstests
-- Queue-, Persistenz-, Serialisierungs-, DOM- und Tastaturtests
-- automatisierte Dock-Geometrie für 375×667, 390×844, 393×852, 430×932 und 412×915
-- Manifest-, Service-Worker-, Offline-Asset- und GitHub-Pages-Unterpfadprüfungen
+- Queue-, Persistenz- und vollständige Eingabeserialisierung
+- echter Test-DOM für App, Tastatur, Hardwaretasten und alle Eingabestrukturen
+- automatisierte Dock- und CSS-Prüfung für sieben mobile Viewports von 320×568 bis 430×932 sowie 844×390 im Querformat
+- ausgeführte Service-Worker-Install-/Activate-/Fetch- und Offline-Fallbacktests
+- Manifest-, Offline-Asset- und GitHub-Pages-Unterpfadprüfungen
 
 Die Cloud-Browser-Navigation zu `127.0.0.1:8080` wurde in dieser Abnahme durch die Browser-Sicherheitsrichtlinie blockiert. Deshalb wird keine manuelle Sichtprüfung behauptet; die mobile Aussage beruht auf DOM-, CSS- und Geometrietests.
 
+Alle Befehle und Abnahmedeckungen sind in [TESTING.md](./TESTING.md) dokumentiert.
+
 ## PWA und GitHub Pages
 
-Alle Laufzeitressourcen sind lokal und relativ referenziert. `manifest.webmanifest` verwendet `./` für Start und Scope. Service-Worker-Cache `kopfmathe-v4-20260718` enthält die vollständige App-Shell, entfernt alte Cache-Versionen und aktualisiert Assets im Hintergrund.
+Alle Laufzeitressourcen sind lokal und relativ referenziert. `manifest.webmanifest` verwendet `./` für Start und Scope. Service-Worker-Cache `kopfmathe-v4-20260718` enthält 44 relative App-Shell-Einträge, entfernt alte Cache-Versionen und aktualisiert Assets im Hintergrund. Installieren, Aktivieren, Cache-First-Assets und Offline-Navigation am Unterpfad werden als ausgeführter Worker-Code getestet.
 
 Pages bleibt für Branch `main`, Ordner `/(root)` und Basispfad `/KopfMatheDings/` ausgelegt:
 
@@ -110,12 +114,11 @@ https://lovisfarhood.github.io/KopfMatheDings/
 
 ## Lokal entwickeln
 
-Node.js 20 oder neuer genügt; es gibt keine Runtime-Abhängigkeiten und keinen Bundler.
+Node.js 20.19 oder neuer genügt; es gibt keine Runtime-Abhängigkeiten und keinen Bundler.
 
 ```bash
 python3 -m http.server 8080
-npm test
-npm run build
+npm run verify
 ```
 
 ## Projektstruktur

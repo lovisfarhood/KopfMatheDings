@@ -5,10 +5,18 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "test:generators": "node --test tests/generators.test.js",
+    "test:math": "node --test tests/independent-math.test.js",
+    "test:ui": "node --test tests/ui-regressions.test.js tests/dom.test.js tests/keyboard-dom.test.js tests/viewport.test.js",
+    "test:pwa": "node --test tests/pwa.test.js tests/offline.test.js",
     "check": "node scripts/check-static.mjs",
-    "build": "npm run check"
+    "build": "npm run check",
+    "verify": "npm test && npm run build"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
+  },
+  "devDependencies": {
+    "linkedom": "0.18.13"
   }
 }

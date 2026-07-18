@@ -359,7 +359,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 .exercise-view {
   min-height: 100dvh;
-  padding: max(12px, env(safe-area-inset-top)) 12px calc(var(--keyboard-height) + var(--workspace-height) + 32px);
+  padding: max(12px, env(safe-area-inset-top)) 12px calc(var(--keyboard-height) + var(--workspace-height) + env(safe-area-inset-bottom) + 32px);
 }
 
 .exercise-header {
