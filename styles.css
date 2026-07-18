@@ -14,7 +14,7 @@
   --accent-ink: #10151f;
   --ok: #87c8a1;
   --bad: #e49a9a;
-  --keyboard-height: 302px;
+  --keyboard-height: 320px;
   --workspace-height: 70px;
   --radius: 22px;
   --radius-small: 14px;
@@ -39,6 +39,7 @@ body {
   color: var(--text);
   font-size: clamp(15px, 1.5vw, 17px);
   line-height: 1.45;
+  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -49,6 +50,8 @@ button {
   color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
+
+button:not(.sr-only) { min-height: 44px; }
 
 button:focus-visible,
 input:focus-visible,
@@ -463,7 +466,14 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 .math-slot::-webkit-scrollbar { display: none; }
 .math-slot.is-active { border-color: var(--accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
+.math-slot.is-visual-editor {
+  justify-content: flex-start;
+  min-width: min(100%, 240px);
+  overflow-x: auto;
+  cursor: default;
+}
 .slot-placeholder { color: var(--subtle); font-family: Inter, sans-serif; font-size: .72rem; }
+.entry-placeholder { min-width: .65em; color: var(--subtle); opacity: .72; }
 
 .entry-caret {
   display: inline-block;
@@ -587,7 +597,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   margin-top: 14px;
 }
 
-.quiet-button { min-height: 42px; padding: 6px 8px; background: transparent; color: var(--muted); font-size: .75rem; }
+.quiet-button { min-height: 44px; padding: 6px 8px; background: transparent; color: var(--muted); font-size: .75rem; }
 
 .result-actions {
   display: grid;
@@ -633,10 +643,10 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .step-chips::-webkit-scrollbar { display: none; }
 .workspace-empty { align-self: center; color: var(--subtle); font-size: .72rem; white-space: nowrap; }
 .workspace-actions { display: flex; gap: 6px; }
-.dock-button { min-height: 42px; padding: 6px 10px; border-radius: 12px; font-size: .7rem; white-space: nowrap; }
+.dock-button { min-height: 44px; padding: 6px 10px; border-radius: 12px; font-size: .7rem; white-space: nowrap; }
 
 .step-chip { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface-raised); }
-.step-chip button { min-height: 40px; border: 0; border-left: 1px solid var(--line); background: transparent; cursor: pointer; }
+.step-chip button { min-height: 44px; border: 0; border-left: 1px solid var(--line); background: transparent; cursor: pointer; }
 .step-chip .chip-value { max-width: 180px; padding: 6px 10px; border-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .74rem; }
 .chip-action { width: 34px; color: var(--muted); }
 
@@ -651,17 +661,20 @@ button:disabled { cursor: not-allowed; opacity: .42; }
   border-top: 1px solid var(--line-strong);
   background: #0d0f12;
   box-shadow: 0 -12px 35px rgb(0 0 0 / .35);
+  contain: layout paint;
 }
 
 .math-keyboard {
   display: grid;
-  grid-template-rows: 38px 50px 1fr;
+  grid-template-rows: 44px 50px 1fr;
   gap: 6px;
   width: min(100%, 760px);
   height: var(--keyboard-height);
   margin: 0 auto;
   padding: 7px 8px 9px;
 }
+
+.keyboard-dock > .math-keyboard { position: relative; }
 
 .keyboard-tabs {
   display: grid;
@@ -673,7 +686,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 }
 
 .keyboard-tab {
-  min-height: 32px;
+  min-height: 44px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -729,7 +742,7 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 .toast { bottom: calc(var(--keyboard-height) + var(--workspace-height) + env(safe-area-inset-bottom) + 12px); }
 .update-banner { top: max(12px, env(safe-area-inset-top)); }
 .toast button,
-.update-banner button { min-height: 40px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-weight: 800; }
+.update-banner button { min-height: 44px; border: 0; background: transparent; color: var(--accent); cursor: pointer; font-weight: 800; }
 
 @media (min-width: 620px) {
   .view { padding-inline: 22px; }
@@ -738,13 +751,13 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 }
 
 @media (max-width: 390px) {
-  :root { --keyboard-height: 286px; --workspace-height: 64px; }
+  :root { --keyboard-height: 312px; --workspace-height: 64px; }
   .view { padding-inline: 10px; }
   .setup-card { padding: 15px; }
   .mode-options { grid-template-columns: 1fr; }
   .mode-card { min-height: 62px; }
-  .math-keyboard { grid-template-rows: 36px 46px 1fr; padding-inline: 5px; }
-  .math-key { min-height: 42px; font-size: .94rem; }
+  .math-keyboard { grid-template-rows: 44px 46px 1fr; padding-inline: 5px; }
+  .math-key { min-height: 44px; font-size: .94rem; }
   .workspace-inner { padding-inline: 7px; }
   .dock-button { padding-inline: 7px; }
   .workspace-empty { display: none; }
@@ -752,9 +765,9 @@ button:disabled { cursor: not-allowed; opacity: .42; }
 
 @media (orientation: landscape) and (max-height: 520px) {
   :root { --keyboard-height: 210px; --workspace-height: 56px; }
-  .math-keyboard { grid-template-rows: 32px 42px 1fr; }
+  .math-keyboard { grid-template-rows: 44px 42px 1fr; }
   .keyboard-grid { grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(2, 1fr); }
-  .math-key { min-height: 38px; }
+  .math-key { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

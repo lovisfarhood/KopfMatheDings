@@ -8,7 +8,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const requiredFiles = [
   "index.html", "styles.css", "manifest.webmanifest", "sw.js",
   "src/app.js", "src/core/expression.js", "src/core/checker.js", "src/core/registry.js",
-  "src/ui/input-model.js", "src/ui/inputs.js", "src/ui/math-keyboard.js",
+  "src/core/later-queue.js", "src/ui/input-model.js", "src/ui/inputs.js", "src/ui/math-keyboard.js", "src/ui/layout.js",
   "src/topics/quality-generators.js", "icons/icon-180.png", "icons/icon-192.png",
   "icons/icon-512.png", "icons/maskable-512.png"
 ];
@@ -36,7 +36,7 @@ for (const file of requiredFiles.filter(file => !file.startsWith("icons/icon-") 
 const sourceFiles = [
   "sw.js", "src/app.js", "src/core/expression.js", "src/core/checker.js", "src/core/storage.js",
   "src/core/registry.js", "src/ui/input-model.js", "src/ui/inputs.js", "src/ui/math-keyboard.js",
-  "src/topics/helpers.js", "src/topics/quality-generators.js", "scripts/check-static.mjs"
+  "src/ui/layout.js", "src/core/later-queue.js", "src/topics/helpers.js", "src/topics/quality-generators.js", "scripts/check-static.mjs"
 ];
 for (const file of sourceFiles) execFileSync(process.execPath, ["--check", join(root, file)], { stdio: "pipe" });
 

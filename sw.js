@@ -1,4 +1,4 @@
-const CACHE = "kopfmathe-v3-20260717";
+const CACHE = "kopfmathe-v4-20260718";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -20,6 +20,8 @@ const APP_SHELL = [
   "./src/ui/input-model.js",
   "./src/ui/inputs.js",
   "./src/ui/math-keyboard.js",
+  "./src/ui/layout.js",
+  "./src/core/later-queue.js",
   "./src/topics/helpers.js",
   "./src/topics/catalog-a.js",
   "./src/topics/catalog-b.js",

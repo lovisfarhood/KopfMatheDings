@@ -1,4 +1,4 @@
-import { formatExpression } from "../core/expression.js";
+import { formatEditorExpression, formatExpression } from "../core/expression.js";
 import { MathEntryModel } from "./input-model.js";
 
 const escapeHtml = value => String(value).replace(/[&<>"']/g, character => ({
@@ -13,6 +13,98 @@ function modeFor(spec) {
   if (spec.type === "choice") return "choice";
   if (spec.type === "fields" || spec.type === "matrix") return "structured";
   return "expression";
+}
+
+function scalarType(spec) {
+  return ["number", "expression", "set", "interval"].includes(spec.type);
+}
+
+export function serializeInput(spec, collected) {
+  if (scalarType(spec)) return { type: spec.type, value: String(collected ?? "") };
+  if (spec.type === "fields") return {
+    type: "fields",
+    ...(spec.subtype ? { subtype: spec.subtype } : {}),
+    values: Object.fromEntries(Object.entries(collected || {}).map(([key, value]) => [key, String(value ?? "")]))
+  };
+  if (spec.type === "matrix") return {
+    type: "matrix",
+    rows: spec.rows,
+    columns: spec.columns,
+    values: Array.from({ length: spec.rows }, (_, row) => Array.from({ length: spec.columns }, (_, column) => String(collected?.[row]?.[column] ?? "")))
+  };
+  if (spec.type === "choice") return { type: "choice", value: String(collected ?? "") };
+  return { type: spec.type || "expression", value: String(collected ?? "") };
+}
+
+export function serializedComplete(serialized) {
+  if (!serialized || typeof serialized !== "object") return false;
+  if (["number", "expression", "set", "interval", "choice"].includes(serialized.type)) return Boolean(String(serialized.value ?? "").trim());
+  if (serialized.type === "fields") {
+    const values = Object.values(serialized.values || {});
+    return values.length > 0 && values.every(value => String(value ?? "").trim());
+  }
+  if (serialized.type === "matrix") {
+    return Array.isArray(serialized.values)
+      && serialized.values.length === serialized.rows
+      && serialized.values.every(row => Array.isArray(row) && row.length === serialized.columns && row.every(value => String(value ?? "").trim()));
+  }
+  return false;
+}
+
+export function valuesFromSerialized(spec, serialized) {
+  if (!serialized || typeof serialized !== "object") return null;
+  if (scalarType(spec)) {
+    if (!["number", "expression", "set", "interval"].includes(serialized.type)) return null;
+    return { value: String(serialized.value ?? "") };
+  }
+  if (spec.type === "fields") {
+    if (serialized.type !== "fields") return null;
+    if (spec.subtype && serialized.subtype !== spec.subtype) return null;
+    if ((spec.fields || []).some(field => !(field.key in (serialized.values || {})))) return null;
+    return Object.fromEntries((spec.fields || []).map(field => [field.key, String(serialized.values?.[field.key] ?? "")]));
+  }
+  if (spec.type === "matrix") {
+    if (serialized.type !== "matrix" || serialized.rows !== spec.rows || serialized.columns !== spec.columns) return null;
+    return Object.fromEntries(Array.from({ length: spec.rows * spec.columns }, (_, index) => {
+      const row = Math.floor(index / spec.columns), column = index % spec.columns;
+      return [`m-${row}-${column}`, String(serialized.values?.[row]?.[column] ?? "")];
+    }));
+  }
+  if (spec.type === "choice" && serialized.type === "choice") return { value: String(serialized.value ?? "") };
+  return null;
+}
+
+function compact(value, limit = 34) {
+  const normalized = String(value ?? "").replace(/-/g, "−").replace(/\*/g, "·");
+  return normalized.length > limit ? `${normalized.slice(0, limit - 1)}…` : normalized;
+}
+
+export function displaySerialized(serialized, spec = {}) {
+  if (!serialized) return "";
+  if (serialized.type === "matrix") {
+    const label = spec.label || "A";
+    return compact(`${label}=[[${serialized.values.map(row => row.join(",")).join("],[")}]]`, 42);
+  }
+  if (serialized.type === "fields") {
+    const entries = Object.entries(serialized.values || {});
+    if (serialized.subtype === "vector") return compact(`(${entries.map(([key]) => key).join(",")})=(${entries.map(([, value]) => value).join(",")})`);
+    return compact(entries.map(([key, value]) => `${key}=${value}`).join(", "));
+  }
+  if (serialized.type === "set") return compact(`${spec.label || "λ"}={${serialized.value}}`);
+  if (serialized.type === "interval") return compact(serialized.value);
+  if (serialized.type === "choice") {
+    const option = spec.options?.find(item => String(item.value) === String(serialized.value));
+    return compact(option?.label || serialized.value);
+  }
+  const generic = !spec.label || ["Antwort", "Mathematischer Ausdruck"].includes(spec.label);
+  return compact(generic ? serialized.value : `${spec.label}=${serialized.value}`);
+}
+
+export function chipFromController(controller, preferredLabel = "") {
+  if (!controller?.isComplete?.()) return null;
+  const serialized = controller.serialize?.();
+  if (!serializedComplete(serialized)) return null;
+  return { label: preferredLabel || controller.displayValue(), serialized };
 }
 
 function defaultTemplate(spec) {
@@ -81,6 +173,29 @@ class ChoiceController {
     return this.selected;
   }
 
+  serialize() {
+    return serializeInput(this.spec, this.collect());
+  }
+
+  restore(serialized) {
+    if (serialized?.type !== "choice") return false;
+    this.selected = String(serialized.value ?? "");
+    this.render();
+    return true;
+  }
+
+  insertSerialized(serialized) {
+    return this.restore(serialized);
+  }
+
+  displayValue() {
+    return displaySerialized(this.serialize(), this.spec);
+  }
+
+  isComplete() {
+    return serializedComplete(this.serialize());
+  }
+
   setDisabled(value) {
     this.disabled = Boolean(value);
     this.root.querySelectorAll("button").forEach(button => { button.disabled = this.disabled; });
@@ -125,12 +240,14 @@ export class MathInputController {
     element.setAttribute("aria-multiline", "false");
     element.setAttribute("aria-readonly", String(this.disabled));
     element.setAttribute("aria-valuetext", slot.value || "leer");
+    element.setAttribute("inputmode", "none");
+    element.setAttribute("virtualkeyboardpolicy", "manual");
+    element.setAttribute("autocapitalize", "off");
 
     if (index === this.model.activeIndex && !this.disabled) {
       element.classList.add("is-active");
-      const before = escapeHtml(slot.value.slice(0, slot.cursor)).replace(/-/g, "−").replace(/\*/g, "·");
-      const after = escapeHtml(slot.value.slice(slot.cursor)).replace(/-/g, "−").replace(/\*/g, "·");
-      element.innerHTML = `<span>${before}</span><span class="entry-caret" aria-hidden="true"></span><span>${after}</span>`;
+      element.classList.add("is-visual-editor");
+      element.innerHTML = formatEditorExpression(slot.value, slot.cursor, { allowedVariables: this.spec.allowedVariables }).html;
     } else if (slot.value) {
       const formatted = formatExpression(slot.value);
       element.innerHTML = formatted.html;
@@ -189,12 +306,12 @@ export class MathInputController {
     interpretation.className = "interpretation";
     interpretation.setAttribute("aria-live", "polite");
     if (!slot.value) {
-      interpretation.innerHTML = "<span>Die formatierte Eingabe erscheint hier.</span>";
+      interpretation.innerHTML = "<span>Brüche, Potenzen, Wurzeln und Funktionen erscheinen direkt im Editor.</span>";
     } else {
-      const formatted = formatExpression(slot.value);
+      const formatted = formatExpression(slot.value, { allowedVariables: this.spec.allowedVariables });
       interpretation.classList.toggle("has-error", !formatted.ok);
       interpretation.innerHTML = formatted.ok
-        ? `<span class="interpretation-label">So lesen wir:</span><span class="interpreted-math">${formatted.html}</span>`
+        ? `<span class="interpretation-label">Syntax geprüft</span><span>Die sichtbare Struktur ist auswertbar.</span>`
         : `<span class="interpretation-label">Noch unvollständig:</span><span>${escapeHtml(formatted.error)}</span>`;
     }
     container.append(interpretation);
@@ -252,12 +369,46 @@ export class MathInputController {
 
   collect() {
     const values = this.model.values();
-    if (this.spec.type === "number" || this.spec.type === "expression" || this.spec.type === "set") return values.value;
+    if (["number", "expression", "set", "interval"].includes(this.spec.type)) return values.value;
     if (this.spec.type === "fields") return values;
     if (this.spec.type === "matrix") {
       return Array.from({ length: this.spec.rows }, (_, row) => Array.from({ length: this.spec.columns }, (_, column) => values[`m-${row}-${column}`]));
     }
     return "";
+  }
+
+  serialize() {
+    return serializeInput(this.spec, this.collect());
+  }
+
+  restore(serialized) {
+    const values = valuesFromSerialized(this.spec, serialized);
+    if (!values) return false;
+    for (const [key, value] of Object.entries(values)) this.model.setValue(key, value);
+    this.render();
+    this.focus();
+    this.options.onChange?.();
+    return true;
+  }
+
+  insertSerialized(serialized) {
+    if (this.spec.type === serialized?.type || (this.spec.type === "fields" && serialized?.type === "fields")) return this.restore(serialized);
+    if (scalarType(this.spec) && ["number", "expression", "set", "interval"].includes(serialized?.type)) {
+      this.model.insertText(String(serialized.value ?? ""));
+      this.render();
+      this.focus();
+      this.options.onChange?.();
+      return true;
+    }
+    return false;
+  }
+
+  displayValue() {
+    return displaySerialized(this.serialize(), this.spec);
+  }
+
+  isComplete() {
+    return serializedComplete(this.serialize());
   }
 
   setDisabled(value) {

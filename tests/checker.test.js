@@ -30,6 +30,23 @@ test("algebraische Äquivalenz statt Zeichenketten", () => {
   assert.equal(checkTaskAnswer(expected("x^2"), "x^3").correct, false);
 });
 
+test("Gleichungs-, Definitionsbereichs- und Formmodi werden getrennt geprüft", () => {
+  const equation = task({ type: "expression", value: "x=1", equivalenceMode: "equation", allowedVariables: ["x"] });
+  assert.equal(checkTaskAnswer(equation, "3x-3=0").correct, true);
+  assert.equal(checkTaskAnswer(equation, "x^2=1").correct, false);
+
+  const strict = task({ type: "expression", value: "(x^2-1)/(x-1)", equivalenceMode: "strict-domain", excludedValues: ["1"], allowedVariables: ["x"] });
+  assert.equal(checkTaskAnswer(strict, "(x^2-1)/(x-1)").correct, true);
+  assert.equal(checkTaskAnswer(strict, "x+1").correct, false);
+
+  const factored = task({ type: "expression", value: "x^2-1", equivalenceMode: "factored", allowedVariables: ["x"] });
+  assert.equal(checkTaskAnswer(factored, "(x-1)(x+1)").correct, true);
+  assert.equal(checkTaskAnswer(factored, "x^2-1").correct, false);
+  const expanded = task({ type: "expression", value: "x^2-1", equivalenceMode: "expanded", allowedVariables: ["x"] });
+  assert.equal(checkTaskAnswer(expanded, "x^2-1").correct, true);
+  assert.equal(checkTaskAnswer(expanded, "(x-1)(x+1)").correct, false);
+});
+
 test("ungültige Syntax wird verständlich und nicht als falsch bewertet", () => {
   const result = checkTaskAnswer(task({ type: "expression", value: "x+1" }), "(x+1");
   assert.equal(result.valid, false);
@@ -62,6 +79,22 @@ test("komplexe Zahlen in kartesischer und Eulerform", () => {
   assert.equal(checkTaskAnswer(euler, "1/2+sqrt(3)/2*i").correct, true);
   assert.equal(checkTaskAnswer(task({ type: "complex", re: -2, im: 3 }), "-2+3i").correct, true);
   assert.equal(checkTaskAnswer(euler, "1/2-sqrt(3)/2*i").correct, false);
+});
+
+test("verlangte komplexe Darstellungsform ist bindend", () => {
+  const cartesian = task({ type: "complex", expression: "1/2+sqrt(3)/2*i", equivalenceMode: "cartesian-complex" });
+  assert.equal(checkTaskAnswer(cartesian, "1/2+sqrt(3)/2*i").correct, true);
+  assert.equal(checkTaskAnswer(cartesian, "exp(i*pi/3)").correct, false);
+  const polar = task({ type: "complex", expression: "exp(i*pi/3)", equivalenceMode: "polar-complex" });
+  assert.equal(checkTaskAnswer(polar, "exp(i*pi/3)").correct, true);
+  assert.equal(checkTaskAnswer(polar, "1/2+sqrt(3)/2*i").correct, false);
+});
+
+test("Intervalle unterscheiden offene und geschlossene Grenzen", () => {
+  const interval = task({ type: "interval", lower: -1, upper: 2, leftClosed: true, rightClosed: false });
+  assert.equal(checkTaskAnswer(interval, "[-1; 2)").correct, true);
+  assert.equal(checkTaskAnswer(interval, "(-1; 2)").correct, false);
+  assert.equal(checkTaskAnswer(interval, "[-1; 2").valid, false);
 });
 
 test("Argumente werden modulo 2π geprüft", () => {

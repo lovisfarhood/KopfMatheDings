@@ -16,10 +16,10 @@ test("Manifest ist gültig und GitHub-Pages-relativ", () => {
 
 test("Service Worker cached alle neuen lokalen Laufzeitmodule", () => {
   const worker = readFileSync(join(root, "sw.js"), "utf8");
-  for (const asset of ["src/core/expression.js", "src/ui/input-model.js", "src/ui/math-keyboard.js", "src/topics/quality-generators.js"]) {
+  for (const asset of ["src/core/expression.js", "src/core/later-queue.js", "src/ui/input-model.js", "src/ui/math-keyboard.js", "src/ui/layout.js", "src/topics/quality-generators.js"]) {
     assert.match(worker, new RegExp(asset.replaceAll(".", "\\.")), asset);
   }
-  assert.match(worker, /kopfmathe-v3-/);
+  assert.match(worker, /kopfmathe-v4-/);
   assert.match(worker, /SKIP_WAITING/);
 });
 

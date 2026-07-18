@@ -1,8 +1,11 @@
 import { Rational } from "./rational.js";
 import {
   complexClose,
+  equivalentEquations,
   equivalentExpressions,
   evaluateConstant,
+  matchesRequiredForm,
+  strictDomainEquivalent,
   splitTopLevel
 } from "./expression.js";
 
@@ -42,10 +45,24 @@ function sameNumber(actual, expected, tolerance = 1e-9) {
   return { valid: true, correct: Math.abs(current - target) <= tolerance * scale };
 }
 
-function sameExpression(actual, expected, tolerance = 1e-8) {
+function sameExpression(actual, expected, options = {}) {
   if (!String(actual ?? "").trim()) return { valid: false, correct: false, message: "Bitte gib zuerst einen Ausdruck ein." };
   try {
-    return { valid: true, correct: equivalentExpressions(actual, expected, { tolerance }) };
+    const mode = options.equivalenceMode || "algebraic";
+    const comparisonOptions = {
+      tolerance: options.tolerance ?? 1e-8,
+      allowedVariables: options.allowedVariables,
+      excludedValues: options.excludedValues
+    };
+    let correct;
+    if (mode === "equation") correct = equivalentEquations(actual, expected, comparisonOptions);
+    else if (mode === "strict-domain") correct = strictDomainEquivalent(actual, expected, comparisonOptions);
+    else correct = equivalentExpressions(actual, expected, comparisonOptions);
+    if (correct && !["algebraic", "equation", "strict-domain"].includes(mode)) {
+      correct = matchesRequiredForm(actual, mode, comparisonOptions);
+      if (!correct) return { valid: true, correct: false, message: `Der Wert stimmt, aber die verlangte Form „${mode}“ fehlt.` };
+    }
+    return { valid: true, correct };
   } catch (error) {
     return {
       valid: false,
@@ -83,7 +100,7 @@ function checkMatrix(raw, wanted, tolerance) {
   return { valid: true, correct };
 }
 
-function checkSet(raw, expected, tolerance) {
+function checkSet(raw, expected, tolerance, options = {}) {
   const parts = splitTopLevel(raw);
   if (!parts.length) return { valid: false, correct: false, message: "Bitte trenne mehrere Lösungen mit Semikolon." };
   if (parts.length !== expected.length) return { valid: true, correct: false };
@@ -92,8 +109,8 @@ function checkSet(raw, expected, tolerance) {
     let matched = -1;
     for (let index = 0; index < remaining.length; index += 1) {
       const comparison = typeof remaining[index] === "object" && remaining[index]?.expression
-        ? sameExpression(part, remaining[index].expression, tolerance)
-        : sameExpression(part, String(remaining[index]), tolerance);
+        ? sameExpression(part, remaining[index].expression, { ...options, ...remaining[index], tolerance })
+        : sameExpression(part, String(remaining[index]), { ...options, tolerance });
       if (!comparison.valid) return comparison;
       if (comparison.correct) {
         matched = index;
@@ -128,10 +145,50 @@ function checkComplex(raw, answer, tolerance) {
     const actual = evaluateConstant(raw);
     const expected = answer.expression ? evaluateConstant(answer.expression) : { re: numericValue(answer.re), im: numericValue(answer.im) };
     if (expected.re === null || expected.im === null) throw new TypeError("Ungültiger Zielwert.");
-    return { valid: true, correct: complexClose(actual, expected, tolerance) };
+    const valueCorrect = complexClose(actual, expected, tolerance);
+    const formCorrect = !answer.equivalenceMode || matchesRequiredForm(raw, answer.equivalenceMode, { allowedVariables: [] });
+    return {
+      valid: true,
+      correct: valueCorrect && formCorrect,
+      ...(valueCorrect && !formCorrect ? { message: `Der Wert stimmt, aber die verlangte Form „${answer.equivalenceMode}“ fehlt.` } : {})
+    };
   } catch (error) {
     return { valid: false, correct: false, message: error instanceof Error ? error.message : "Die komplexe Zahl konnte nicht gelesen werden." };
   }
+}
+
+function parseInterval(raw) {
+  const source = String(raw ?? "").trim().replace(/−/g, "-");
+  const match = source.match(/^([[(])\s*(.+?)\s*[;,]\s*(.+?)\s*([\])])$/);
+  if (!match) return null;
+  const boundary = value => {
+    const normalized = value.trim().toLowerCase();
+    if (["-inf", "-infinity", "-∞"].includes(normalized)) return -Infinity;
+    if (["inf", "+inf", "infinity", "+infinity", "∞", "+∞"].includes(normalized)) return Infinity;
+    return numericValue(value);
+  };
+  const lower = boundary(match[2]), upper = boundary(match[3]);
+  if (lower === null || upper === null || lower > upper) return null;
+  return { lower, upper, leftClosed: match[1] === "[", rightClosed: match[4] === "]" };
+}
+
+function checkInterval(raw, answer, tolerance) {
+  const actual = parseInterval(raw);
+  if (!actual) return { valid: false, correct: false, message: "Bitte gib ein Intervall wie [−1; 2) ein." };
+  const expected = {
+    lower: typeof answer.lower === "number" ? answer.lower : numericValue(answer.lower),
+    upper: typeof answer.upper === "number" ? answer.upper : numericValue(answer.upper),
+    leftClosed: Boolean(answer.leftClosed),
+    rightClosed: Boolean(answer.rightClosed)
+  };
+  const sameBoundary = (left, right) => left === right || (Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) <= tolerance * Math.max(1, Math.abs(left), Math.abs(right)));
+  return {
+    valid: true,
+    correct: sameBoundary(actual.lower, expected.lower)
+      && sameBoundary(actual.upper, expected.upper)
+      && actual.leftClosed === expected.leftClosed
+      && actual.rightClosed === expected.rightClosed
+  };
 }
 
 function checkAngle(raw, answer, tolerance) {
@@ -147,25 +204,32 @@ function checkAngle(raw, answer, tolerance) {
 export function checkTaskAnswer(task, raw) {
   const answer = task.answer;
   const tolerance = answer.tolerance ?? 1e-8;
+  const expressionOptions = {
+    ...answer,
+    allowedVariables: answer.allowedVariables || task.inputSpec?.allowedVariables,
+    tolerance
+  };
   let result;
 
   if (answer.type === "number") {
     if (!String(raw ?? "").trim()) return { valid: false, correct: false, message: "Bitte gib zuerst eine Antwort ein." };
     result = sameNumber(raw, answer.value, tolerance);
   } else if (answer.type === "expression") {
-    result = sameExpression(raw, answer.value, tolerance);
+    result = sameExpression(raw, answer.value, expressionOptions);
   } else if (answer.type === "fields") {
     result = checkFields(raw, answer.values, tolerance);
   } else if (answer.type === "matrix") {
     result = checkMatrix(raw, answer.values, tolerance);
   } else if (answer.type === "set") {
-    result = checkSet(raw, answer.values, tolerance);
+    result = checkSet(raw, answer.values, tolerance, expressionOptions);
   } else if (answer.type === "proportional") {
     result = checkProportional(raw, answer.values, tolerance);
   } else if (answer.type === "complex") {
     result = checkComplex(raw, answer, tolerance);
   } else if (answer.type === "angle") {
     result = checkAngle(raw, answer, tolerance);
+  } else if (answer.type === "interval") {
+    result = checkInterval(raw, answer, tolerance);
   } else if (answer.type === "choice" || answer.type === "boolean") {
     if (!String(raw ?? "").trim()) return { valid: false, correct: false, message: "Bitte wähle eine Antwort aus." };
     result = { valid: true, correct: String(raw) === String(answer.value) };
@@ -174,7 +238,7 @@ export function checkTaskAnswer(task, raw) {
   }
 
   return result.valid
-    ? { ...result, message: result.correct ? "Richtig." : "Noch nicht richtig." }
+    ? { ...result, message: result.message || (result.correct ? "Richtig." : "Noch nicht richtig.") }
     : result;
 }
 
@@ -183,6 +247,7 @@ export function canonicalRaw(task) {
   if (["number", "choice", "boolean", "expression", "angle"].includes(answer.type)) return String(answer.value);
   if (answer.type === "complex") return answer.expression || `${answer.re}+(${answer.im})*i`;
   if (answer.type === "set") return answer.values.map(value => typeof value === "object" ? value.expression : value).join("; ");
+  if (answer.type === "interval") return `${answer.leftClosed ? "[" : "("}${answer.lower}; ${answer.upper}${answer.rightClosed ? "]" : ")"}`;
   if (answer.type === "matrix") return answer.values.map(row => row.map(String));
   return Object.fromEntries(Object.entries(answer.values).map(([key, value]) => [key, String(value)]));
 }

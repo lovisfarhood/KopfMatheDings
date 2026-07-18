@@ -1,108 +1,140 @@
 # KopfMathe
 
-KopfMathe ist eine mobile, installierbare Mathematik-PWA für kurze, klausurnahe Trainingseinheiten. Die App funktioniert ohne Konto, Backend, Tracking oder Laufzeit-KI und nach dem ersten vollständigen Laden auch offline.
+KopfMathe ist eine mobile, installierbare HM1-Trainings-PWA ohne Konto, Backend, Tracking, Werbung oder Laufzeit-KI. Nach dem ersten vollständigen Laden funktioniert sie offline.
 
-Die aktuelle Architektur umfasst 18 Themen, 102 auditierte Generatorfamilien, davon 99 aktiv. Drei schwache Familien sind bewusst deaktiviert. Die Standardauswahl ist **Klausurstandard**; Basisaufgaben werden dort nicht beigemischt.
+Der aktuelle Stand umfasst 18 Themen und 103 auditierte Generatorfamilien: 100 aktiv, 3 begründet deaktiviert. Klausurstandard ist vorausgewählt; MATLAB bleibt standardmäßig aus.
 
 ## Benutzung
 
-1. Ein Preset wählen oder beliebig viele Themen-Chips kombinieren.
-2. **Basis**, **Klausurstandard**, **Klausur+** oder **Transfer / Knobeln** wählen.
-3. **Kopfmodus** oder **Schrittmodus** wählen und das Training starten.
+1. Preset wählen oder Themen beliebig kombinieren.
+2. Basis, Klausurstandard, Klausur+ oder Transfer wählen.
+3. Kopf- oder Schrittmodus starten.
 4. Mit der dauerhaft angedockten KopfMathe-Tastatur antworten.
 
-Die Themenauswahl wird lokal gespeichert. „Gemischt“ ist kein verstecktes Thema mehr: Nur ausdrücklich aktive Themen werden verwendet.
+Nur aktivierte Themen werden erzeugt. Gibt es in einer gewählten Stufe keine passende Familie, sucht die Registry innerhalb derselben Themen die nächste verfügbare Stufe und kennzeichnet das sichtbar. Gibt es im Schrittmodus in keiner Stufe eine echte Mehrschrittaufgabe, erscheint ein kontrollierter Hinweis statt einer fachfremden Ersatzaufgabe.
 
-## Eingabe und Prüfung
+## Eingabe
 
-KopfMathe verwendet drei Antwortmuster mit einem gemeinsamen Controller:
+Alle Aufgaben verwenden eine gemeinsame Tastatur und drei Antwortmuster:
 
-- Multiple Choice mit aus typischen Fehlern abgeleiteten Distraktoren
-- strukturierte Inline-Antworten für Koeffizienten, Vektoren und Matrizen
-- freie mathematische Ausdrücke mit zweidimensionaler Vorschau für Brüche, Potenzen und Wurzeln
+- Multiple Choice als zugängliche Radiogruppe
+- strukturierte Inline-Eingabe für Koeffizienten, Vektoren und Matrizen
+- freie mathematische Eingabe für Zahlen, Mengen, Intervalle, Gleichungen und Ausdrücke
 
-Die eigene Tastatur enthält Zahlen, Minus, Grundrechenarten, Variablen, Konstanten, Funktionen, Brüche, Potenzen, Wurzeln, Mengen- und Intervallklammern sowie Cursor-, Lösch- und Prüftasten. Aufgabenfelder sind keine nativen Texteingaben; dadurch öffnet sich auf dem iPhone nicht ungewollt die Systemtastatur. Hardware-Tastaturen bleiben nutzbar.
+Die Tastatur wird als inneres `.math-keyboard`-Element in einem unveränderten `.keyboard-dock` gerendert. Dock und Workspace sind fest positioniert, berücksichtigen die iPhone-Safe-Area und bleiben beim Aufgabenwechsel bestehen. Die Aufgabenfelder sind fokussierbare DOM-Editoren mit `inputmode="none"` statt nativer Textfelder; Hardware-Tastaturen bleiben nutzbar.
 
-Der sichere Parser verwendet kein `eval()`. Er prüft unter anderem:
+Brüche, Exponenten, Wurzeln, Funktionen und das aktive Caret werden direkt im Eingabebereich strukturiert dargestellt. Die intern gespeicherte, sicher auswertbare Quellrepräsentation bleibt linear. Das ist ein echter visueller Struktur-Editor für die unterstützten Kurzformen, aber kein allgemeiner LaTeX-/Handschrifteditor und kein vollständiges digitales Schreibpapier.
 
-- exakte und dezimale Zahlen, negative Werte und Brüche
-- algebraisch äquivalente Ausdrücke wie `x+x` und `2x`
-- faktorisierte und ausmultiplizierte Darstellungen
-- ungeordnete Lösungsmengen
-- Matrizen mit Dimensionsprüfung
-- Eigenvektoren bis auf einen von null verschiedenen Skalarfaktor
-- komplexe kartesische und Euler-Darstellungen
-- Argumente modulo `2π`
+Details: [INPUT_ARCHITECTURE.md](./INPUT_ARCHITECTURE.md).
 
-Details stehen in [INPUT_ARCHITECTURE.md](./INPUT_ARCHITECTURE.md).
+## Parser und Prüfung
 
-## Schrittmodus
+Der Parser verwendet weder `eval()` noch den `Function`-Konstruktor. Er unterstützt unter anderem:
 
-Der Schrittmodus hält Zwischenergebnisse als antippbare Chips oberhalb der Tastatur sichtbar. Chips lassen sich einsetzen, zum Bearbeiten in die aktive Eingabe übernehmen oder löschen. Kuratierte mehrstufige Abläufe bestehen für Gauß-Verfahren, Partialbruchzerlegung, verschobene Taylorpolynome und LU-Zerlegung. Jede Aufgabe kann außerdem eigene Zwischenergebnisse speichern.
+- negative Zahlen, Brüche, Dezimalpunkt/-komma und negative Exponenten
+- implizite Multiplikation wie `2x`, `3xy`, `2sin(x)`, `x(x+1)` und `(x+1)(x-1)`
+- aufgabenspezifische Variablenlisten; `xy` kann Produkt oder ausdrücklich registrierte Variable sein
+- reelle und komplexe Auswertung
+- ungeordnete Mengen, Intervalle, Matrizen und Vektoren
+- Gleichungsäquivalenz über normalisierte Polynomkoeffizienten beziehungsweise konservative Proportionalitätsproben
+- strikte Definitionsbereiche mit expliziten Ausschlüssen und erkannten Nennernullstellen
+- verlangte Formen: faktorisiert, ausmultipliziert, kartesisch komplex, polar komplex und Partialbruchform
+- Eigenvektoren bis auf einen von null verschiedenen Skalar und Winkel modulo einer Periode
 
-## Aufgabenqualität
+Die Äquivalenzprüfung ist bewusst konservativ und kein vollständiges CAS. Verzweigungsabhängige Identitäten, allgemeine transzendente Nullmengen und nicht erkannte mehrdimensionale Definitionsränder können abgelehnt werden.
 
-Die Auswahl gewichtet Generatorfamilien und realistische Klausurthemen, blockiert unmittelbare Wiederholungen und verstärkt lokal erkannte Schwächen. Nach Fehlern, Hinweisen, Überspringen oder Lösungseinblick stehen ähnliche Aufgaben, einfachere Vorstufen, schwierigere Varianten und spätere Wiederholung bereit.
+## Schrittmodus und Zwischenergebnisse
 
-Das vollständige Audit ist in [TASK_AUDIT.md](./TASK_AUDIT.md) dokumentiert. Die Zuordnung zu wiederkehrenden HM1-Mustern steht in [EXAM_ALIGNMENT.md](./EXAM_ALIGNMENT.md).
+Nur vier Familien sind als Schrittgeneratoren registriert:
 
-## Lokal entwickeln
+- `integrals.partial-fractions`
+- `taylor.shifted-exp`
+- `linearSystems.gauss-steps`
+- `decompositions.lu-complete`
 
-Es gibt keine Runtime-Abhängigkeiten und keinen Bundler. Erforderlich sind ein statischer Webserver und für Tests Node.js 20 oder neuer.
+Jede erzeugte Schrittaufgabe besitzt mindestens zwei validierbare Schritte; jeder Schritt hat Prompt, Eingabedefinition, Antwort und Erklärung.
 
-```bash
-python3 -m http.server 8080
-```
+Controller implementieren `collect()`, `serialize()`, `restore()`, `insertSerialized()`, `displayValue()` und `isComplete()`. Chips speichern dadurch vollständige Ausdrücke, Feldobjekte, Vektoren oder Matrizen einschließlich Dimensionen. Einsetzen, Bearbeiten und Löschen arbeitet auf der ganzen Struktur.
 
-Danach `http://127.0.0.1:8080` öffnen. Auf macOS kann alternativ **KopfMathe starten.command** verwendet werden.
+## Später wiederholen
 
-## Tests und Produktionsprüfung
+„Später wiederholen“ speichert die vollständige serialisierbare Aufgabe sowie Seed, Generator, Thema, Stufe, Aufgabenmodus, Eingabemodus, Signatur und Fälligkeit. Eine Aufgabe wird nach 3 bis 10 anderen Aufgaben priorisiert erneut gezeigt, aber nur bei weiterhin aktivem Thema und passendem Aufgabenmodus. Duplikate werden verhindert; eine korrekt gelöste Wiederholung wird entfernt; ein erneutes Vormerken terminiert sie neu. Queue und Zähler liegen in Local Storage und werden vom Datenreset gelöscht.
+
+## Einfacher, schwerer und ähnlich
+
+„Ähnliche Aufgabe“ erzwingt dieselbe Familie mit neuer Signatur. „Einfachere Vorstufe“ und „Schwerere Variante“ verwenden zuerst explizite Beziehungen, dann eine andere unterstützte Stufe derselben Familie und zuletzt dieselbe `competenceId`. Thema und Kompetenz dürfen nicht zufällig wechseln; fehlt eine Beziehung, erscheint eine Meldung.
+
+## Schwierigkeitsmodell
+
+Jede aktive Familie weist genau die eine Stufe aus, die ihre aktuelle Generatorlogik tatsächlich erzeugt. Die vier Niveaus entstehen durch fachliche Progressionen zwischen Familien, zum Beispiel:
+
+- Division durch `i` → allgemeine komplexe Division
+- Produktregel → kombinierte Produkt-/Kettenregel → Fehleranalyse
+- Partialbruchansatz → vollständige Zerlegung
+- Taylor um 0 → verschobener Taylor → rationale Struktur
+- Gauß-Faktor → vollständiger Gauß-Ablauf
+- Eigenwerte → Eigenvektor
+- LU-Faktor → vollständige LU-Zerlegung
+
+Damit kann eine unveränderte Aufgabe nicht unter vier verschiedenen Labels erscheinen. Transferfamilien verlangen Methodenwahl, Strategie, Fehleranalyse oder versteckte Struktur und werden nicht nur durch größere Zahlen schwerer.
+
+Das vollständige Familienaudit steht in [TASK_AUDIT.md](./TASK_AUDIT.md).
+
+## Tests
 
 ```bash
 npm test
 npm run build
 ```
 
-`npm test` erzeugt 102 Varianten je aktiver Familie: **10.098 zufällig parametrisierte Aufgaben**. Zusätzlich werden Parser, Äquivalenzprüfung, Eingabemodell, Themenmehrfachauswahl, lokale Speicherung, Manifest, Offline-Cache und mobile Basisanforderungen geprüft.
+Der vollständige Lauf umfasst aktuell 182 Testfälle:
 
-`npm run build` ist bei dieser statischen Anwendung eine Produktionsprüfung. Sie validiert JavaScript-Syntax, Manifest, lokale Assets, externe Laufzeitressourcen und Service-Worker-Abdeckung.
+- 100 Varianten je aktiver Familie = 10.000 generierte Aufgaben
+- korrekte Musterantwort und konstruierte Falschantwort je Variante
+- 1.000 zufällige Schrittaufgaben
+- 1.600 unabhängige mathematische Referenzprüfungen über 16 Familien
+- Parser-, Gleichungs-, Form- und Definitionsbereichstests
+- Queue-, Persistenz-, Serialisierungs-, DOM- und Tastaturtests
+- automatisierte Dock-Geometrie für 375×667, 390×844, 393×852, 430×932 und 412×915
+- Manifest-, Service-Worker-, Offline-Asset- und GitHub-Pages-Unterpfadprüfungen
 
-## PWA, Offline und Updates
+Die Cloud-Browser-Navigation zu `127.0.0.1:8080` wurde in dieser Abnahme durch die Browser-Sicherheitsrichtlinie blockiert. Deshalb wird keine manuelle Sichtprüfung behauptet; die mobile Aussage beruht auf DOM-, CSS- und Geometrietests.
 
-`manifest.webmanifest` verwendet relative URLs und funktioniert damit unter dem GitHub-Pages-Basispfad `/KopfMatheDings/`. Der Service Worker cached die vollständige App-Shell und alle lokalen Module. Navigation nutzt online eine frische Version und offline die gecachte `index.html`; Assets werden aus dem Cache beantwortet und im Hintergrund aktualisiert. Alte Cache-Versionen werden bei Aktivierung gelöscht.
+## PWA und GitHub Pages
 
-Auf dem iPhone: URL in Safari öffnen → Teilen → **Zum Home-Bildschirm** → **Hinzufügen**.
+Alle Laufzeitressourcen sind lokal und relativ referenziert. `manifest.webmanifest` verwendet `./` für Start und Scope. Service-Worker-Cache `kopfmathe-v4-20260718` enthält die vollständige App-Shell, entfernt alte Cache-Versionen und aktualisiert Assets im Hintergrund.
 
-## GitHub Pages
+Pages bleibt für Branch `main`, Ordner `/(root)` und Basispfad `/KopfMatheDings/` ausgelegt:
 
-Die App benötigt keinen Build-Output. Pages wird aus Branch `main`, Ordner `/(root)` veröffentlicht. Alle Laufzeitpfade sind relativ; die erwartete URL lautet:
+https://lovisfarhood.github.io/KopfMatheDings/
 
-`https://lovisfarhood.github.io/KopfMatheDings/`
+## Lokal entwickeln
+
+Node.js 20 oder neuer genügt; es gibt keine Runtime-Abhängigkeiten und keinen Bundler.
+
+```bash
+python3 -m http.server 8080
+npm test
+npm run build
+```
 
 ## Projektstruktur
 
 ```text
-index.html / styles.css          Oberfläche und mobiles Dark-Mode-Layout
-manifest.webmanifest / sw.js    Installation, Offline-Cache und Updates
-src/core/expression.js          sicherer Parser, Auswertung und Formel-Rendering
-src/core/checker.js             semantische Antwortprüfung
-src/core/registry.js            Themen, Presets, Metadaten und Balancing
-src/ui/input-model.js           Cursor-, Slot- und Matrixnavigation
-src/ui/inputs.js                drei Antwortmodi
-src/ui/math-keyboard.js         persistente KopfMathe-Tastatur
-src/topics/                     bestehende und neue Generatorfamilien
-scripts/check-static.mjs        statische Produktionsprüfung
-tests/                          automatisierte Regressionstests
+index.html / styles.css             mobile Oberfläche und feste Docks
+manifest.webmanifest / sw.js       Installation, Offline-Cache, Updates
+src/core/expression.js             sicherer Parser, Gleichungen, Domains, Rendering
+src/core/checker.js                semantische Antwort- und Formprüfung
+src/core/later-queue.js            reproduzierbare Wiederholungswarteschlange
+src/core/registry.js               Themen, Stufen, Schrittfilter, Varianten
+src/ui/input-model.js              Cursor-, Slot- und Matrixnavigation
+src/ui/inputs.js                   Controller und vollständige Serialisierung
+src/ui/math-keyboard.js            persistente innere Tastaturfläche
+src/ui/layout.js                   testbare mobile Dock-Geometrie
+src/topics/                        Generatorfamilien
+tests/                             Regressionen und unabhängige Mathematik
 ```
 
-## Datenschutz
+## Klausurbezug und Grenzen
 
-Einstellungen, letzte Aufgaben, Fehlerhistorie und „später wiederholen“ liegen ausschließlich in Local Storage. Die Einstellungen bieten einen vollständigen lokalen Reset. Es gibt keine externen Schriften, Skripte, Analysewerkzeuge, Werbung oder Datenübertragung.
-
-## Bewusste Grenzen
-
-- Die Äquivalenzprüfung ist ein sicherer domänenspezifischer Parser mit kontrollierten Stichproben, kein vollständiges Computer-Algebra-System. Verzweigungsabhängige Identitäten können daher bewusst abgelehnt werden.
-- Die Formeleingabe bleibt für mobile Geschwindigkeit linear editierbar und zeigt parallel die zweidimensionale Interpretation; sie ist kein vollständiges digitales Schreibpapier.
-- Die kuratierten Altklausur-Muster beruhen auf dem im Projektauftrag verfügbaren HM1-Kontext. Im Repository liegen keine Klausur-PDFs, daher werden keine konkrete Klausur oder Jahreszahl behauptet und keine Originalaufgaben kopiert.
-
-Wesentliche Änderungen sind in [CHANGELOG.md](./CHANGELOG.md) aufgeführt.
+Im Repository und im bereitgestellten Work-Kontext liegen keine Altklausur-PDFs, Bilder oder Aufgabenblätter. Daher behauptet KopfMathe keine Kalibrierung an konkreten Jahren, Aufgaben oder Punkteverteilungen. Verwendet werden allgemeine, im Auftrag genannte HM1-Muster. Für einen echten Abgleich fehlen die betreffenden Klausurdokumente, Modul-/Prüfungsordnung und Angaben zu erlaubten Hilfsmitteln. Siehe [EXAM_ALIGNMENT.md](./EXAM_ALIGNMENT.md).

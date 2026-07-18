@@ -38,3 +38,25 @@ test("alte v1-Einstellungen werden ohne Datenbruch migriert", () => {
   assert.deepEqual(load().selectedTopics, defaults.selectedTopics);
   delete globalThis.localStorage;
 });
+
+test("Wiederholungswarteschlange bleibt nach Neustart und wird beim Reset geleert", () => {
+  globalThis.localStorage = fakeStorage();
+  const state = load();
+  state.taskCounter = 12;
+  state.later = [{
+    signature: "demo:1",
+    generatorId: "demo",
+    topic: "complex",
+    difficulty: "standard",
+    taskMode: "head",
+    dueAt: 15,
+    task: { signature: "demo:1", generatorId: "demo", topic: "complex" }
+  }];
+  save(state);
+  assert.equal(load().later[0].signature, "demo:1");
+  assert.equal(load().taskCounter, 12);
+  resetStorage();
+  assert.deepEqual(load().later, []);
+  assert.equal(load().taskCounter, 0);
+  delete globalThis.localStorage;
+});

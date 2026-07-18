@@ -4,11 +4,20 @@ import {
   PRESETS,
   TOPICS,
   topicById,
-  topicsForWeaknesses
+  topicsForWeaknesses,
+  variantRequestFor
 } from "./core/registry.js";
+import {
+  completeLater,
+  dueLater,
+  enqueueLater,
+  rescheduleLater,
+  restoreLater
+} from "./core/later-queue.js";
 import { defaults, load, resetStorage, save } from "./core/storage.js";
-import { renderInputs } from "./ui/inputs.js";
+import { chipFromController, renderInputs } from "./ui/inputs.js";
 import { MathKeyboard } from "./ui/math-keyboard.js";
+import { applyDockMetrics } from "./ui/layout.js";
 
 const $ = selector => document.querySelector(selector);
 const elements = {
@@ -39,6 +48,7 @@ const elements = {
   prompt: $("#prompt"),
   stepPrompt: $("#step-prompt"),
   form: $("#form"),
+  taskActions: $(".task-actions"),
   inputs: $("#inputs"),
   feedback: $("#feedback"),
   hintPanel: $("#hint-panel"),
@@ -81,7 +91,6 @@ const ANSWER_MODE_LABELS = Object.freeze({
   "structured-inline": "Strukturiert",
   "free-expression": "Freie Eingabe"
 });
-const DIFFICULTY_ORDER = ["basis", "standard", "plus", "transfer"];
 
 let state = load();
 let task = null;
@@ -96,6 +105,7 @@ let attemptedWrong = false;
 let outcomeFinalized = false;
 let undoSnapshot = null;
 let undoTimer = null;
+let activeLater = null;
 
 function persist() {
   state.matlab = elements.matlab.checked;
@@ -234,20 +244,51 @@ function addRecent(currentTask) {
 }
 
 function createTask(options = {}) {
-  task = generateTask({
-    topics: state.selectedTopics,
-    difficulty: options.difficulty || state.difficulty,
-    mode: state.mode,
-    history: state.recent,
-    outcomes: state.outcomes,
-    matlabEnabled: state.matlab,
-    forcedGeneratorId: options.forcedGeneratorId || null,
-    seed: options.seed
-  });
+  activeLater = null;
+  const queued = !options.forcedGeneratorId && !options.difficulty && !options.seed && !options.ignoreLater
+    ? dueLater(state.later, { counter: state.taskCounter, enabledTopics: state.selectedTopics, mode: state.mode })
+    : null;
+  if (queued) {
+    activeLater = queued;
+    task = restoreLater(queued);
+  } else {
+    task = generateTask({
+      topics: state.selectedTopics,
+      difficulty: options.difficulty || state.difficulty,
+      mode: state.mode,
+      history: state.recent,
+      outcomes: state.outcomes,
+      matlabEnabled: state.matlab,
+      forcedGeneratorId: options.forcedGeneratorId || null,
+      seed: options.seed
+    });
+  }
+  if (task.unavailable) {
+    persist();
+    renderUnavailableTask();
+    return;
+  }
+  state.taskCounter += 1;
   addRecent(task);
   resetAttemptState();
   persist();
   renderTask();
+}
+
+function renderUnavailableTask() {
+  clearFeedback();
+  controller = null;
+  elements.meta.textContent = state.mode === "step" ? "Schrittmodus" : "Kopfmodus";
+  elements.kind.textContent = "Keine passende Aufgabe";
+  elements.prompt.innerHTML = `<span class="context">Auswahl kontrolliert beendet</span><span>${task.message}</span>`;
+  elements.stepPrompt.hidden = true;
+  elements.stepProgress.hidden = true;
+  elements.form.hidden = true;
+  elements.taskActions.hidden = true;
+  elements.resultActions.hidden = true;
+  elements.workspaceDock.hidden = true;
+  elements.keyboardDock.hidden = true;
+  elements.back.focus({ preventScroll: true });
 }
 
 function feedback(kind, message) {
@@ -294,17 +335,20 @@ function renderWorkspace() {
     insert.type = "button";
     insert.className = "chip-value";
     insert.textContent = chip.label;
-    insert.title = `${chip.value} in die aktive Position einsetzen`;
-    insert.addEventListener("click", () => controller?.insertValue(chip.value));
+    insert.title = `${chip.label} vollständig einsetzen`;
+    insert.addEventListener("click", () => {
+      if (!controller?.insertSerialized(chip.serialized)) feedback("neutral", "Dieses Zwischenergebnis passt nicht zur aktuellen Eingabestruktur.");
+    });
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "chip-action";
     edit.textContent = "↗";
     edit.setAttribute("aria-label", `${chip.label} bearbeiten`);
     edit.addEventListener("click", () => {
-      controller?.insertValue(chip.value);
-      stepChips.splice(index, 1);
-      renderWorkspace();
+      if (controller?.restore(chip.serialized)) {
+        stepChips.splice(index, 1);
+        renderWorkspace();
+      } else feedback("neutral", "Dieses Zwischenergebnis kann in diesem Editor nicht vollständig bearbeitet werden.");
     });
     const remove = document.createElement("button");
     remove.type = "button";
@@ -330,9 +374,13 @@ function renderWorkspace() {
 
 function renderTask() {
   clearFeedback();
+  elements.form.hidden = false;
+  elements.taskActions.hidden = false;
+  elements.workspaceDock.hidden = false;
+  elements.keyboardDock.hidden = false;
   const unit = activeUnit();
   const topic = topicById(task.topic);
-  elements.meta.textContent = `${topic.short} · ${DIFFICULTY_LABELS[task.difficulty]}`;
+  elements.meta.textContent = `${topic.short} · ${DIFFICULTY_LABELS[task.difficulty]}${task.difficultyAdjustedFrom ? " · nächste verfügbare Stufe" : ""}${activeLater ? " · Wiederholung" : ""}`;
   elements.kind.textContent = task.title;
   elements.time.textContent = task.estimatedSeconds >= 60 ? `${Math.ceil(task.estimatedSeconds / 60)} min` : `≈ ${task.estimatedSeconds} s`;
   elements.taskMode.textContent = state.mode === "step" ? "Schrittmodus" : "Kopfmodus";
@@ -383,15 +431,19 @@ function finalizeOutcome(status = outcomeStatus()) {
   } else if (status === "wrong") state.score.wrong += 1;
   else if (status === "skipped") state.score.skipped += 1;
   else if (status === "solution") state.score.solution += 1;
+  if (status === "correct" && activeLater) {
+    state.later = completeLater(state.later, activeLater);
+    activeLater = null;
+  }
   persist();
   updateScore();
   renderPresets();
 }
 
 function addAutomaticChip(step) {
-  const value = step.chipValue || controller.currentValue();
-  if (!value) return;
-  stepChips.push({ label: step.chipLabel || String(value).slice(0, 28), value: String(value) });
+  const chip = chipFromController(controller, step.chipLabel);
+  if (!chip) return;
+  stepChips.push(chip);
   renderWorkspace();
 }
 
@@ -412,7 +464,7 @@ function submitAnswer(event) {
   }
   if (!result.correct) {
     attemptedWrong = true;
-    feedback("bad", "Noch nicht richtig. Prüfe Struktur, Vorzeichen und Klammern.");
+    feedback("bad", result.message === "Noch nicht richtig." ? "Noch nicht richtig. Prüfe Struktur, Vorzeichen und Klammern." : result.message);
     elements.resultActions.hidden = false;
     return;
   }
@@ -473,9 +525,11 @@ function skipTask() {
     hintIndex,
     usedHint,
     attemptedWrong,
-    outcomeFinalized
+    outcomeFinalized,
+    activeLater
   };
   finalizeOutcome("skipped");
+  postponeActiveRepeat();
   createTask();
   showUndo();
 }
@@ -501,37 +555,52 @@ function undoSkip() {
   usedHint = undoSnapshot.usedHint;
   attemptedWrong = undoSnapshot.attemptedWrong;
   outcomeFinalized = undoSnapshot.outcomeFinalized;
+  activeLater = undoSnapshot.activeLater;
   undoSnapshot = null;
   elements.undoToast.hidden = true;
   persist();
   renderTask();
 }
 
-function moveDifficulty(direction) {
-  const index = DIFFICULTY_ORDER.indexOf(task.difficulty);
-  return DIFFICULTY_ORDER[Math.max(0, Math.min(DIFFICULTY_ORDER.length - 1, index + direction))];
-}
-
 function continueWith(options = {}) {
   if (!outcomeFinalized) finalizeOutcome(attemptedWrong ? "wrong" : usedHint ? "hinted" : "skipped");
+  postponeActiveRepeat();
   createTask(options);
 }
 
-function rememberForLater() {
-  if (!state.later.some(item => item.signature === task.signature)) {
-    state.later.push({ signature: task.signature, generatorId: task.generatorId, topic: task.topic, difficulty: task.difficulty });
+function continueVariant(direction) {
+  const request = variantRequestFor(task, direction);
+  if (!request) {
+    feedback("neutral", direction === "easier"
+      ? "Für diese Kompetenz ist keine einfachere Vorstufe hinterlegt."
+      : "Für diese Kompetenz ist keine schwerere Variante hinterlegt.");
+    return;
   }
+  continueWith({ forcedGeneratorId: request.generatorId, difficulty: request.difficulty });
+}
+
+function postponeActiveRepeat() {
+  if (!activeLater) return;
+  state.later = rescheduleLater(state.later, activeLater, { counter: state.taskCounter });
+  activeLater = null;
+  persist();
+}
+
+function rememberForLater() {
+  state.later = activeLater
+    ? rescheduleLater(state.later, activeLater, { counter: state.taskCounter })
+    : enqueueLater(state.later, task, { counter: state.taskCounter, taskMode: state.mode });
+  activeLater = null;
   persist();
   continueWith();
 }
 
 function saveCurrentStep() {
-  const value = controller?.currentValue()?.trim();
-  if (!value) {
+  if (!controller?.isComplete()) {
     feedback("neutral", "Gib zuerst ein Zwischenergebnis ein.");
     return;
   }
-  stepChips.push({ label: value.length > 24 ? `${value.slice(0, 23)}…` : value, value });
+  stepChips.push({ label: controller.displayValue(), serialized: controller.serialize() });
   renderWorkspace();
   feedback("neutral", "Zwischenergebnis gespeichert. Tippe den Chip an, um es wieder einzusetzen.");
 }
@@ -612,8 +681,8 @@ function bindEvents() {
   elements.skipButton.addEventListener("click", skipTask);
   elements.solutionButton.addEventListener("click", showSolution);
   elements.similar.addEventListener("click", () => continueWith({ forcedGeneratorId: task.generatorId }));
-  elements.easier.addEventListener("click", () => continueWith({ difficulty: moveDifficulty(-1) }));
-  elements.harder.addEventListener("click", () => continueWith({ difficulty: moveDifficulty(1) }));
+  elements.easier.addEventListener("click", () => continueVariant("easier"));
+  elements.harder.addEventListener("click", () => continueVariant("harder"));
   elements.later.addEventListener("click", rememberForLater);
   elements.next.addEventListener("click", () => continueWith());
   elements.saveStep.addEventListener("click", saveCurrentStep);
@@ -621,6 +690,8 @@ function bindEvents() {
   elements.undoSkip.addEventListener("click", undoSkip);
   window.addEventListener("online", updateNetworkStatus);
   window.addEventListener("offline", updateNetworkStatus);
+  window.addEventListener("resize", () => applyDockMetrics());
+  window.addEventListener("orientationchange", () => applyDockMetrics());
 }
 
 function registerServiceWorker() {
@@ -640,6 +711,7 @@ function registerServiceWorker() {
 elements.matlab.checked = state.matlab;
 elements.confirmSkip.checked = state.confirmSkip;
 keyboard = new MathKeyboard(elements.keyboardDock);
+applyDockMetrics();
 bindEvents();
 renderStartControls();
 updateNetworkStatus();

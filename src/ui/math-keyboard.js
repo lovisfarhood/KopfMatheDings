@@ -27,18 +27,21 @@ export class MathKeyboard {
     this.options = options;
     this.controller = null;
     this.layer = "basis";
+    this.root.classList.add("keyboard-dock");
+    this.root.setAttribute("aria-label", "KopfMathe-Tastatur");
+    this.surface = document.createElement("div");
+    this.surface.className = "math-keyboard";
+    this.root.replaceChildren(this.surface);
     this.render();
   }
 
   setController(controller) {
     this.controller = controller;
-    this.root.classList.toggle("is-choice", controller?.spec?.type === "choice");
+    this.surface.classList.toggle("is-choice", controller?.spec?.type === "choice");
   }
 
   render() {
-    this.root.replaceChildren();
-    this.root.className = "math-keyboard";
-    this.root.setAttribute("aria-label", "KopfMathe-Tastatur");
+    this.surface.replaceChildren();
 
     const tabs = document.createElement("div");
     tabs.className = "keyboard-tabs";
@@ -71,7 +74,7 @@ export class MathKeyboard {
     keys.setAttribute("role", "tabpanel");
     for (const [label, action, aria] of LAYERS[this.layer]) keys.append(this.makeKey(label, action, aria));
 
-    this.root.append(tabs, navigation, keys);
+    this.surface.append(tabs, navigation, keys);
   }
 
   makeKey(label, action, aria = null, variant = "") {

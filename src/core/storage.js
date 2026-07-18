@@ -1,4 +1,5 @@
-const KEY = "kopfmathe.v2";
+const KEY = "kopfmathe.v3";
+const V2_KEY = "kopfmathe.v2";
 const LEGACY_KEY = "kopfmathe.v1";
 
 const DEFAULT_TOPICS = [
@@ -16,7 +17,8 @@ export const defaults = Object.freeze({
   score: { correct: 0, wrong: 0, hinted: 0, skipped: 0, solution: 0 },
   recent: [],
   outcomes: [],
-  later: []
+  later: [],
+  taskCounter: 0
 });
 
 function storage() {
@@ -51,7 +53,8 @@ export function load() {
   if (!target) return copyDefaults();
   try {
     const current = target.getItem(KEY);
-    const parsed = current ? JSON.parse(current) : migrateLegacy(JSON.parse(target.getItem(LEGACY_KEY) || "null"));
+    const v2 = target.getItem(V2_KEY);
+    const parsed = current ? JSON.parse(current) : v2 ? JSON.parse(v2) : migrateLegacy(JSON.parse(target.getItem(LEGACY_KEY) || "null"));
     return {
       ...copyDefaults(),
       ...parsed,
@@ -59,7 +62,8 @@ export function load() {
       score: { ...defaults.score, ...(parsed.score || {}) },
       recent: Array.isArray(parsed.recent) ? parsed.recent.slice(-30) : [],
       outcomes: Array.isArray(parsed.outcomes) ? parsed.outcomes.slice(-150) : [],
-      later: Array.isArray(parsed.later) ? parsed.later.slice(-50) : []
+      later: Array.isArray(parsed.later) ? parsed.later.filter(item => item?.signature && item?.task).slice(-50) : [],
+      taskCounter: Math.max(0, Number(parsed.taskCounter) || 0)
     };
   } catch {
     return copyDefaults();
@@ -84,6 +88,7 @@ export function resetStorage() {
   try {
     const target = storage();
     target?.removeItem(KEY);
+    target?.removeItem(V2_KEY);
     target?.removeItem(LEGACY_KEY);
     return true;
   } catch {

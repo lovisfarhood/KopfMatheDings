@@ -1,207 +1,221 @@
 # Audit der Generatorfamilien
 
-## Vorgehen
+## Methode und Ergebnis
 
-Alle 102 Familien wurden gegen Klausurnähe, kognitive Anforderung, mobilen Eingabeaufwand, mathematische Vielfalt, Robustheit und erwartete Lösungszeit geprüft. Zusätzlich erzeugt die Testsuite 102 Varianten jeder aktiven Familie und prüft korrekte sowie bewusst falsche Antworten.
+Der Audit liest die tatsächlich registrierten Metadaten und verlässt sich nicht auf frühere Changelog-Angaben. Stand dieser Reparatur:
 
-Skalen: **K** = Klausurnähe, **D** = kognitive Anforderung, **E** = Eingabeaufwand, **V** = Vielfalt; jeweils 0–3. Eingabe: **F** = freie mathematische Eingabe, **S** = strukturierte Inline-Eingabe, **MC** = Multiple Choice. Stufen: **B**, **K**, **K+**, **T** = Basis, Klausurstandard, Klausur+, Transfer. „B–T / 5“ bedeutet in allen sichtbaren Stufen verfügbar, numerischer Ausgangswert 5.
+- 103 Familien insgesamt, 100 aktiv, 3 begründet deaktiviert
+- genau eine real erzeugte Stufe pro Familie; dadurch kann kein unveränderter Generator unter vier Labels erscheinen
+- Kopfmodus nur bei ausdrücklichem `head`
+- Schrittmodus nur bei `integrals.partial-fractions`, `taylor.shifted-exp`, `linearSystems.gauss-steps` und `decompositions.lu-complete`
+- 100 Varianten je aktiver Familie = 10.000 Aufgaben im vollständigen Lauf
+- korrekte Musterantwort und konstruierte Falschantwort je Variante
+- 1.600 zusätzliche unabhängige Referenzprüfungen über 16 Familien
 
-Entscheidungen: **behalten** = mathematischer Kern bleibt; **überarbeitet** = Stufen- oder Eingabelogik wurde wesentlich geändert; **neu** = im Audit ergänzt; **deaktiviert** = nicht in der Auswahl.
+Stufen: **B** = Basis, **K** = Klausurstandard, **K+** = Klausur+, **T** = Transfer. Die Pfeile zeigen die expliziten Kompetenzbeziehungen für „einfacher“ und „schwerer“.
 
 ## Rechengrundlagen
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `basics.signed` | B | head | aktiv | basics.signed |
+| `basics.fractions` | K | head | aktiv | basics.fractions |
+| `basics.percent` | B | head | aktiv | basics.percent |
+| `basics.powers` | K | head | aktiv | basics.powers |
+| `basics.order` | B | head | aktiv | basics.order |
 
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `basics.signed` | Vorzeichen | B / 2 | F | 16 s | 1/1/1/2 | für Klausurstandard zu trivial | überarbeitet: nur Basis |
-| `basics.fractions` | Bruchrechnung | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `basics.percent` | Prozentrechnung | B / 2 | F | 16 s | 1/1/1/2 | geringe Klausurnähe | überarbeitet: nur Basis |
-| `basics.powers` | Potenzen und Wurzeln | B–T / 5 | F | 20 s | 2/2/1/2 | — | behalten |
-| `basics.order` | Rechenreihenfolge | B / 2 | F | 20 s | 1/1/1/2 | nur Grundlagenkontrolle | überarbeitet: nur Basis |
-
-## Algebra und Funktionen
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `algebra.linear` | lineare Gleichung | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `algebra.collect` | Terme sammeln | B–T / 5 | S | 20 s | 2/2/1/2 | getrennte native Felder | überarbeitet: Inline-Controller |
-| `algebra.roots` | Nullstellen | B–T / 5 | F | 24 s | 2/2/1/2 | Reihenfolge früher formatabhängig | überarbeitet: Mengengleichheit |
-| `algebra.composition` | Verkettung | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `algebra.fraction-equation` | Bruchgleichung | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `algebra.factor-structure` | Faktorisierung | B–K+ / 5 | S | 24 s | 3/3/1/3 | fehlte | neu |
+## Algebra & Funktionen
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `algebra.linear` | B | head | aktiv | algebra.linear |
+| `algebra.collect` | B | head | aktiv | algebra.collect |
+| `algebra.roots` | K | head | aktiv | algebra.roots |
+| `algebra.composition` | K+ | head | aktiv | algebra.composition |
+| `algebra.fraction-equation` | K+ | head | aktiv | algebra.fraction-equation |
+| `algebra.factor-structure` | K | head | aktiv | algebra.factor-structure |
 
 ## Komplexe Zahlen
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `complex.add` | Addition | B–T / 5 | S | 20 s | 2/2/1/2 | — | überarbeitet: Inline-Form |
-| `complex.multiply` | Multiplikation | B–T / 5 | S | 24 s | 2/2/1/2 | — | überarbeitet: Inline-Form |
-| `complex.conjugate` | Konjugation | B / 2 | S | 16 s | 1/1/1/2 | zu trivial für Standardpool | überarbeitet: nur Basis |
-| `complex.modulus` | Betrag | B–T / 5 | F | 20 s | 2/2/1/2 | — | behalten |
-| `complex.i-power` | Potenzen von i | B–T / 5 | MC | 20 s | 2/2/1/2 | — | behalten |
-| `complex.divide-i` | Division durch i | B–T / 5 | S | 24 s | 2/2/1/2 | deckte nur Sonderfall ab | behalten als Vorstufe |
-| `complex.division-general` | allgemeine Division | K–T / 7 | F | 44 s | 3/3/1/3 | fehlte | neu |
-| `complex.polar` | kartesisch zu polar | K–T / 7 | S | 44 s | 3/3/1/3 | fehlte | neu |
-| `complex.demoivre` | de Moivre | K+–T / 8 | F | 56 s | 3/3/1/3 | fehlte | neu |
-| `complex.roots` | komplexe Wurzeln | K–K+ / 6 | F | 40 s | 3/3/1/3 | fehlte | neu |
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `complex.add` | B | head | aktiv | complex.add |
+| `complex.multiply` | K | head | aktiv | complex.multiply |
+| `complex.conjugate` | B | head | aktiv | complex.conjugate |
+| `complex.modulus` | B | head | aktiv | complex.modulus |
+| `complex.i-power` | K | head | aktiv | complex.i-power |
+| `complex.divide-i` | B | head | aktiv | → complex.division-general |
+| `complex.division-general` | K | head | aktiv | ← complex.divide-i |
+| `complex.polar` | K | head | aktiv | → complex.demoivre |
+| `complex.demoivre` | K+ | head | aktiv | ← complex.polar; → complex.roots |
+| `complex.roots` | T | head | aktiv | ← complex.demoivre |
 
 ## Grenzwerte
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `limits.infinity` | rational im Unendlichen | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `limits.removable` | kürzbare Lücke | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
-| `limits.sin` | Standardgrenzwert | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `limits.root` | rationalisieren | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `limits.infinity` | K | head | aktiv | limits.infinity |
+| `limits.removable` | T | head | aktiv | limits.removable |
+| `limits.sin` | B | head | aktiv | limits.sin |
+| `limits.root` | K+ | head | aktiv | limits.root |
 
 ## Folgen
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `sequences.arithmetic` | B | head | aktiv | sequences.arithmetic |
+| `sequences.geometric` | B | head | aktiv | sequences.geometric |
+| `sequences.limit` | K | head | aktiv | sequences.limit |
+| `sequences.fixpoint` | T | head | aktiv | sequences.fixpoint |
 
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `sequences.arithmetic` | arithmetische Folge | B / 2 | F | 16 s | 1/1/1/2 | reine Musterfortsetzung | überarbeitet: nur Basis |
-| `sequences.geometric` | geometrische Folge | B / 2 | F | 20 s | 1/1/1/2 | reine Musterfortsetzung | überarbeitet: nur Basis |
-| `sequences.limit` | Folgen-Grenzwert | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `sequences.fixpoint` | Fixpunkt | B–T / 5 | F | 24 s | 2/3/1/2 | — | behalten |
-
-## Reihen und Potenzreihen
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `series.finite` | endliche Summe | B–T / 5 | F | 20 s | 2/2/1/2 | — | behalten |
-| `series.infinite` | geometrische Reihe | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
-| `series.radius` | Konvergenzradius | B–T / 5 | S | 24 s | 3/3/1/2 | unabhängige Felder | überarbeitet: Inline-Controller |
-| `series.convergence` | Konvergenz erkennen | B–T / 5 | MC | 20 s | 3/2/1/2 | — | behalten |
+## Reihen & Potenzreihen
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `series.finite` | B | head | aktiv | series.finite |
+| `series.infinite` | K | head | aktiv | series.infinite |
+| `series.radius` | K+ | head | aktiv | series.radius |
+| `series.convergence` | T | head | aktiv | series.convergence |
 
 ## Ableitungen
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `derivatives.polynomial` | Polynomwert der Ableitung | B–T / 5 | F | 24 s | 2/2/1/2 | lange Koeffizientenform vermieden | überarbeitet: nur kurzer Wert |
-| `derivatives.chain` | Kettenregel | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
-| `derivatives.product` | Produktregel | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
-| `derivatives.critical` | kritischer Punkt | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `derivatives.rules` | Methodenwahl | B–T / 5 | MC | 16 s | 3/2/1/2 | Distraktoren begrenzt | überarbeitet: Fehleroptionen |
-| `derivatives.quotient` | Quotientenregel | K–T / 7 | F | 44 s | 3/3/1/3 | fehlte | neu |
-| `derivatives.mixed-expression` | Produkt plus Kette | K+–T / 8 | F | 56 s | 3/3/2/3 | freie Äquivalenz nötig | neu |
-| `derivatives.chain-error` | Fehleranalyse | B–K+ / 5 | MC | 24 s | 3/3/1/3 | fehlte | neu |
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `derivatives.polynomial` | B | head | aktiv | derivatives.polynomial |
+| `derivatives.chain` | K | head | aktiv | → derivatives.mixed-expression |
+| `derivatives.product` | K | head | aktiv | → derivatives.mixed-expression |
+| `derivatives.critical` | K+ | head | aktiv | derivatives.critical |
+| `derivatives.rules` | T | head | aktiv | derivatives.rules |
+| `derivatives.quotient` | K | head | aktiv | ← derivatives.product; → derivatives.mixed-expression |
+| `derivatives.mixed-expression` | K+ | head | aktiv | ← derivatives.product; → derivatives.chain-error |
+| `derivatives.chain-error` | T | head | aktiv | ← derivatives.mixed-expression |
 
 ## Taylorpolynome
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `taylor.exp` | Exponentialfunktion um 0 | B–T / 5 | S | 24 s | 3/3/2/2 | vier native Felder | überarbeitet: gemeinsames Polynom-Template |
-| `taylor.sin` | Sinus um 0 | B–T / 5 | S | 24 s | 3/3/2/2 | vier native Felder | überarbeitet: gemeinsames Polynom-Template |
-| `taylor.cos` | Kosinus um 0 | B–T / 5 | S | 24 s | 3/3/2/2 | vier native Felder | überarbeitet: gemeinsames Polynom-Template |
-| `taylor.geometric` | geometrische Taylorreihe | B–T / 5 | S | 24 s | 3/3/2/2 | vier native Felder | überarbeitet: gemeinsames Polynom-Template |
-| `taylor.shifted-exp` | Entwicklung um x₀ | K+–T / 8 | F/Schritt | 84 s | 3/3/2/3 | fehlte | neu |
-| `taylor.rational` | rationale Funktion | K–K+ / 7 | F | 44 s | 3/3/1/3 | fehlte | neu |
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `taylor.exp` | K | head | aktiv | → taylor.shifted-exp |
+| `taylor.sin` | K | head | aktiv | taylor.sin |
+| `taylor.cos` | K | head | aktiv | taylor.cos |
+| `taylor.geometric` | T | head | aktiv | taylor.geometric |
+| `taylor.shifted-exp` | K+ | step/head | aktiv | ← taylor.exp; → taylor.rational |
+| `taylor.rational` | T | head | aktiv | ← taylor.shifted-exp |
 
 ## Integralrechnung
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `integrals.power` | B | head | aktiv | integrals.power |
+| `integrals.antiderivative` | K | head | aktiv | integrals.antiderivative |
+| `integrals.partial` | K+ | head | aktiv | integrals.partial |
+| `integrals.method` | T | head | aktiv | integrals.method |
+| `integrals.substitution` | K | head | aktiv | integrals.substitution |
+| `integrals.parts-choice` | K | head | aktiv | integrals.parts-choice |
+| `integrals.partial-fractions-setup` | B | head | aktiv | → integrals.partial-fractions |
+| `integrals.partial-fractions` | K | step/head | aktiv | ← integrals.partial-fractions-setup |
 
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `integrals.power` | Potenzregel | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten |
-| `integrals.antiderivative` | Stammfunktion | B–T / 5 | S | 20 s | 2/2/1/2 | getrennte Koeffizienten | überarbeitet: Inline-Controller |
-| `integrals.partial` | einfacher Partialbruch | B–T / 5 | S | 24 s | 2/2/1/2 | nur Kurzform | behalten als Vorstufe |
-| `integrals.method` | Methodenwahl | B–T / 5 | MC | 20 s | 3/2/1/2 | — | behalten |
-| `integrals.substitution` | Substitution mit Grenzen | K–K+ / 7 | F | 44 s | 3/3/1/3 | fehlte | neu |
-| `integrals.parts-choice` | partielle Integration | K–K+ / 6 | MC | 36 s | 3/3/1/3 | fehlte | neu |
-| `integrals.partial-fractions` | vollständige Zerlegung | K–T / 8 | S/Schritt | 126 s | 3/3/2/3 | fehlte | neu |
-
-## Matrizen, Determinanten und Eigenwerte
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `matrices.add` | Matrixaddition | B–T / 5 | S | 24 s | 1/1/3/2 | viel Eingabe, kaum Denken | **deaktiviert** |
-| `matrices.det` | 2×2-Determinante | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten als Basis |
-| `matrices.vector` | Matrix-Vektor-Produkt | B–T / 5 | S | 24 s | 2/2/2/2 | — | behalten |
-| `matrices.triangular` | Dreiecksmatrix | B–T / 5 | F | 20 s | 2/2/1/2 | — | behalten |
-| `matrices.inverse-entry` | einzelner Inverseneintrag | B–T / 5 | F | 24 s | 2/2/1/2 | — | behalten als Vorstufe |
-| `matrices.invertible` | Invertierbarkeit | B–T / 5 | MC | 24 s | 3/2/1/2 | — | behalten |
-| `matrices.det-structured-3` | strategische 3×3-Determinante | K–T / 8 | F | 44 s | 3/3/1/3 | fehlte | neu |
-| `matrices.row-operation` | Zeilenoperation | B–K+ / 6 | S | 24 s | 3/3/2/3 | fehlte | neu |
-| `matrices.eigenvalues` | Eigenwerte | K–K+ / 6 | F | 36 s | 3/3/1/3 | fehlte | neu |
-| `matrices.eigenvector` | Eigenvektor | K+–T / 8 | S | 56 s | 3/3/2/3 | skalare Äquivalenz nötig | neu |
-| `matrices.inverse` | vollständige Inverse 2×2 | K–K+ / 7 | S | 44 s | 3/3/3/3 | fehlte | neu |
+## Matrizen, Determinanten & Eigenwerte
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `matrices.add` | K | head | deaktiviert: Hoher Eingabeaufwand bei sehr geringer kognitiver Anforderung. | matrices.add |
+| `matrices.det` | B | head | aktiv | matrices.det |
+| `matrices.vector` | K | head | aktiv | matrices.vector |
+| `matrices.triangular` | B | head | aktiv | matrices.triangular |
+| `matrices.inverse-entry` | K+ | head | aktiv | matrices.inverse-entry |
+| `matrices.invertible` | K | head | aktiv | matrices.invertible |
+| `matrices.det-structured-3` | T | head | aktiv | matrices.det-structured-3 |
+| `matrices.row-operation` | B | head | aktiv | matrices.row-operation |
+| `matrices.eigenvalues` | K | head | aktiv | → matrices.eigenvector |
+| `matrices.eigenvector` | K+ | head | aktiv | ← matrices.eigenvalues |
+| `matrices.inverse` | K+ | head | aktiv | matrices.inverse |
 
 ## Lineare Gleichungssysteme
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `linearSystems.solve` | K | head | aktiv | linearSystems.solve |
+| `linearSystems.type` | T | head | aktiv | linearSystems.type |
+| `linearSystems.gauss` | B | head | aktiv | → linearSystems.gauss-steps |
+| `linearSystems.back` | K | head | aktiv | linearSystems.back |
+| `linearSystems.homogeneous` | T | head | aktiv | linearSystems.homogeneous |
+| `linearSystems.classification` | T | head | aktiv | linearSystems.classification |
+| `linearSystems.gauss-steps` | K+ | step/head | aktiv | ← linearSystems.gauss |
 
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `linearSystems.solve` | 2×2-System | B–T / 5 | S | 24 s | 3/3/2/2 | native Einzelfelder | überarbeitet: gemeinsame Lösung |
-| `linearSystems.type` | Lösungsanzahl | B–T / 5 | MC | 24 s | 3/3/1/2 | — | behalten |
-| `linearSystems.gauss` | Gauß-Faktor | B–T / 5 | F | 24 s | 3/2/1/2 | nur Teilschritt | behalten als Vorstufe |
-| `linearSystems.back` | Rückwärtssubstitution | B–T / 5 | S | 24 s | 3/3/2/2 | — | überarbeitet: Inline-Controller |
-| `linearSystems.homogeneous` | homogenes System | B–T / 5 | MC | 24 s | 3/2/1/2 | — | behalten |
-| `linearSystems.classification` | keine/unendlich viele Lösungen | B–K+ / 6 | MC | 24 s | 3/3/1/3 | fehlte | neu |
-| `linearSystems.gauss-steps` | vollständiger Gauß-Ablauf | K–T / 9 | S/Schritt | 126 s | 3/3/2/3 | fehlte | neu |
+## Vektorräume, Basis, Rang & Kern
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `vectorSpaces.combination` | K | head | aktiv | vectorSpaces.combination |
+| `vectorSpaces.dimension` | B | head | aktiv | vectorSpaces.dimension |
+| `vectorSpaces.kernel` | K+ | head | aktiv | vectorSpaces.kernel |
+| `vectorSpaces.rank` | K | head | aktiv | vectorSpaces.rank |
+| `vectorSpaces.subspace` | T | head | aktiv | vectorSpaces.subspace |
+| `vectorSpaces.coordinates` | K | head | aktiv | vectorSpaces.coordinates |
 
-## Vektorräume
+## Orthogonalität & Approximation
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `orthogonality.dot` | B | head | aktiv | orthogonality.dot |
+| `orthogonality.norm` | B | head | aktiv | orthogonality.norm |
+| `orthogonality.projection` | K+ | head | aktiv | orthogonality.projection |
+| `orthogonality.normal` | K | head | aktiv | orthogonality.normal |
+| `orthogonality.least-squares` | T | head | aktiv | orthogonality.least-squares |
+| `orthogonality.angle` | K+ | head | aktiv | orthogonality.angle |
 
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `vectorSpaces.combination` | Linearkombination | B–T / 5 | S | 24 s | 3/3/2/2 | — | überarbeitet: Inline-Controller |
-| `vectorSpaces.dimension` | Dimension von Pₙ | B–T / 5 | F | 16 s | 2/2/1/2 | kurz, aber konzeptionell | behalten |
-| `vectorSpaces.kernel` | Kern | B–T / 5 | S | 24 s | 3/3/2/2 | — | überarbeitet: Vektorcontroller |
-| `vectorSpaces.rank` | Rang | B–T / 5 | MC | 24 s | 3/3/1/2 | — | behalten |
-| `vectorSpaces.subspace` | Untervektorraum | B–T / 5 | MC | 20 s | 3/3/1/2 | — | behalten |
-| `vectorSpaces.coordinates` | Basisdarstellung | K–K+ / 7 | S | 44 s | 3/3/2/3 | fehlte | neu |
-
-## Orthogonalität und Approximation
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `orthogonality.dot` | Skalarprodukt | B–T / 5 | F | 20 s | 2/2/1/2 | als Standard allein zu einfach | behalten, niedriger gewichtet |
-| `orthogonality.norm` | Norm | B–T / 5 | F | 20 s | 2/2/1/2 | — | behalten |
-| `orthogonality.projection` | Projektion | B–T / 5 | S | 24 s | 3/3/2/2 | — | überarbeitet: Vektorcontroller |
-| `orthogonality.normal` | Normalenvektor | B–T / 5 | S | 20 s | 3/2/2/2 | exakte Zeichenfolge ungeeignet | überarbeitet: Skalarvielfache |
-| `orthogonality.least-squares` | Ausgleichsgerade | B–T / 5 | S | 24 s | 3/3/2/2 | — | überarbeitet: Inline-Controller |
-| `orthogonality.angle` | Winkel | K–K+ / 7 | F | 44 s | 3/3/1/3 | fehlte | neu |
-
-## Matrixzerlegungen
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `decompositions.lr` | LR-Faktor | B–T / 5 | F | 24 s | 3/2/1/2 | nur Einzelfaktor | behalten als Vorstufe |
-| `decompositions.forward` | Vorwärtssubstitution | B–T / 5 | S | 24 s | 3/3/2/2 | — | überarbeitet: Vektorcontroller |
-| `decompositions.orthogonal` | QR-Idee | B–T / 5 | MC | 20 s | 3/2/1/2 | — | behalten |
-| `decompositions.pivot` | Pivotisierung | B–T / 5 | MC | 20 s | 3/3/1/2 | — | behalten |
-| `decompositions.lu-complete` | LU-Zerlegung | K–T / 8 | S/Schritt | 126 s | 3/3/2/3 | fehlte | neu |
-| `decompositions.qr-first-vector` | erster QR-Vektor | K–K+ / 6 | S | 40 s | 3/3/2/3 | fehlte | neu |
+## QR- und LU-Zerlegung
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `decompositions.lr` | B | head | aktiv | → decompositions.lu-complete |
+| `decompositions.forward` | K | head | aktiv | decompositions.forward |
+| `decompositions.orthogonal` | B | head | aktiv | decompositions.orthogonal |
+| `decompositions.pivot` | T | head | aktiv | decompositions.pivot |
+| `decompositions.lu-complete` | K+ | step/head | aktiv | ← decompositions.lr |
+| `decompositions.qr-first-vector` | K | head | aktiv | qr-decomposition |
 
 ## Numerische Verfahren
-
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `numericalMethods.newton` | Newton-Schritt | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
-| `numericalMethods.euler` | Euler-Schritt | B–T / 5 | F | 24 s | 3/3/1/2 | — | behalten |
-| `numericalMethods.trapezoid` | Trapezregel | B–T / 5 | F | 24 s | 2/2/1/2 | Formeleinsetzung, aber methodisch relevant | behalten |
-| `numericalMethods.rectangle` | Rechteckregel | B–T / 5 | F | 24 s | 1/1/1/2 | reine Formeleinsetzung, redundant | **deaktiviert** |
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `numericalMethods.newton` | K | head | aktiv | numericalMethods.newton |
+| `numericalMethods.euler` | K+ | head | aktiv | numericalMethods.euler |
+| `numericalMethods.trapezoid` | T | head | aktiv | numericalMethods.trapezoid |
+| `numericalMethods.rectangle` | K | head | deaktiviert: Nahezu reine Formeleinsetzung; die methodisch stärkere Trapezfamilie bleibt aktiv. | numericalMethods.rectangle |
 
 ## Differentialgleichungen
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `differentialEquations.initial` | B | head | aktiv | differentialEquations.initial |
+| `differentialEquations.equilibrium` | K | head | aktiv | differentialEquations.equilibrium |
+| `differentialEquations.verify` | K+ | head | aktiv | differentialEquations.verify |
+| `differentialEquations.characteristic` | T | head | aktiv | differentialEquations.characteristic |
 
-| Generator-ID | Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `differentialEquations.initial` | Anfangswert ablesen | B / 2 | F | 16 s | 1/1/1/2 | trivial außerhalb Basis | überarbeitet: nur Basis |
-| `differentialEquations.equilibrium` | stationäre Lösung | B–T / 5 | F | 24 s | 3/2/1/2 | — | behalten |
-| `differentialEquations.verify` | Lösung überprüfen | B–T / 5 | MC | 20 s | 3/3/1/2 | — | behalten |
-| `differentialEquations.characteristic` | charakteristische Gleichung | B–T / 5 | F | 24 s | 3/3/1/2 | Reihenfolge früher relevant | überarbeitet: Mengengleichheit |
+## Methoden & Konzepte
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `trueFalse.computed` | K | head | deaktiviert: Rechenaufgabe im Wahr/Falsch-Gewand mit zu hoher Rate erratbarer Antworten. | trueFalse.computed |
+| `trueFalse.concepts` | T | head | aktiv | trueFalse.concepts |
 
-## Methoden, Konzepte und MATLAB
+## MATLAB & Algorithmen
+| Generator | Stufe | Modus | Status | Kompetenzbezug |
+|---|---|---|---|---|
+| `matlab.elementwise` | K | head | aktiv | matlab.elementwise |
+| `matlab.size` | B | head | aktiv | matlab.size |
 
-| Generator-ID | Thema / Unterthema | Stufe / Wert | Eingabe | Zeit | K/D/E/V | Bekanntes Problem | Entscheidung |
-|---|---|---:|---:|---:|---:|---|---|
-| `trueFalse.computed` | Konzepte / Rechnen als Wahr-Falsch | B–T / 5 | MC | 24 s | 1/1/1/2 | erratbar; Rechnen wird nur versteckt | **deaktiviert** |
-| `trueFalse.concepts` | Konzepte / Begriffe | B–T / 5 | MC | 20 s | 3/3/1/2 | — | behalten |
-| `matlab.elementwise` | MATLAB / elementweise Operation | B–T / 5 | F | 16 s | 2/2/1/2 | optionales Randthema | behalten, standardmäßig aus |
-| `matlab.size` | MATLAB / Dimension | B / 2 | MC | 16 s | 1/1/1/2 | trivial | überarbeitet: nur Basis und optional |
+## Unabhängige mathematische Referenzen
 
-## Ergebnis
+Je 100 Varianten werden unabhängig geprüft für:
 
-- Gesamt: **102** Familien
-- Aktiv: **99**
-- Deaktiviert: **3**
-- Neu: **24**
-- Basis-only: **8**
-- Automatisch geprüfte Varianten: **10.098** pro vollständigem Testlauf
+- `complex.division-general`: direkte Real-/Imaginärteilrechnung
+- `complex.roots`: Rückpotenzieren aller Wurzeln
+- `derivatives.quotient` und `derivatives.mixed-expression`: symmetrische Differenzenquotienten
+- `integrals.substitution`: Simpson-Quadratur
+- `integrals.partial-fractions`: numerischer Identitätsvergleich außerhalb der Pole
+- `taylor.shifted-exp` und `taylor.rational`: unabhängig aufgebaute Koeffizientensummen
+- `matrices.det-structured-3`: separate Eliminationsdeterminante
+- `matrices.row-operation`: separate Zeilenanwendung
+- `matrices.eigenvalues`: `det(A−λI)=0`
+- `matrices.eigenvector`: `Av=λv`
+- `matrices.inverse`: `A·A⁻¹=I`
+- `linearSystems.gauss-steps`: Einsetzen und unabhängige Elimination
+- `decompositions.lu-complete`: `LU=A`
+- `decompositions.qr-first-vector`: Norm 1 und korrekte Normierung
 
-Die drei Deaktivierungen bleiben im Quellcode und in `allGenerators`, damit Entscheidung, Tests und spätere Neubewertung nachvollziehbar bleiben. Die aktive Registry enthält sie nicht.
+Zusätzlich deckt die Referenzroutine Nullpivots und singuläre Matrizen ab.
+
+## Deaktivierungen
+
+- `matrices.add`: viel mobile Eingabe bei sehr geringer kognitiver Anforderung
+- `numericalMethods.rectangle`: redundante Formeleinsetzung; Trapezregel bleibt aktiv
+- `trueFalse.computed`: erratbare Rechenaufgabe im Wahr/Falsch-Gewand
+
+## Verbleibende Grenze
+
+Die Stufenkalibrierung ist eine methodische HM1-Kalibrierung, keine empirische Kalibrierung an konkreten Altklausuren. Im bereitgestellten Repository und Work-Kontext liegen keine Klausurdokumente vor.

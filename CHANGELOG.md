@@ -1,38 +1,54 @@
 # Changelog
 
+## 2.1.0 – 2026-07-18
+
+### Kritische Reparaturen
+
+- `.keyboard-dock` bleibt als äußere feste Komponente erhalten; `.math-keyboard` wird nur noch innen gerendert
+- Workspace, Tastatur, Safe Area und Aufgabenpadding teilen eine getestete Dock-Geometrie
+- Standard-`taskModes` ist `["head"]`; nur vier echte Mehrschrittfamilien führen `step`
+- ungeeignete Schritt-Auswahl liefert einen kontrollierten Zustand statt einer fachfremden Grundrechenaufgabe
+- 1.000 zufällige Schrittaufgaben garantieren mindestens zwei vollständig validierbare Schritte
+
+### Wiederholung und Varianten
+
+- „Später wiederholen“ speichert eine vollständige reproduzierbare Aufgabenaufnahme mit Seed, Metadaten, Signatur und Fälligkeit
+- Wiedervorlage nach 3–10 anderen Aufgaben, persistent, dedupliziert, themen- und modusgebunden
+- korrekt gelöste Wiederholungen werden entfernt; erneutes Vormerken terminiert neu
+- explizite `easierPredecessor`-/`harderVariant`-/`competenceId`-Beziehungen verhindern zufällige Themenwechsel
+- neue Vorstufe `integrals.partial-fractions-setup`
+
+### Eingabe und Mathematik
+
+- vollständige Controller-Schnittstelle für Sammeln, Serialisieren, Wiederherstellen, Einsetzen, Anzeige und Vollständigkeit
+- Chips speichern vollständige Ausdrücke, Felder, Vektoren und Matrizen samt Dimensionen
+- Brüche, Exponenten, Wurzeln, Funktionen, leere Strukturplätze und Caret erscheinen direkt im aktiven Editor
+- implizite Multiplikation trennt `xy` aufgabengesteuert als `x*y`
+- separate Gleichungsäquivalenz, strikte Definitionsbereichsprüfung und verlangte Darstellungsformen
+- Intervallprüfung ergänzt
+- komplexe Wurzeln als vollständige kubische Lösungsmenge auf Transferniveau
+
+### Stufen und Qualität
+
+- 103 Familien auditiert, 100 aktiv, 3 deaktiviert
+- jede aktive Familie weist nur noch ihre real erzeugte Einzelstufe aus
+- methodische Progressionen verbinden Basis, Standard, Plus und Transfer über unterschiedliche Familien
+- 16 Familien × 100 Varianten werden unabhängig mathematisch geprüft
+- Service-Worker-Cache `kopfmathe-v4-20260718`
+
+### Prüfung
+
+- 182 automatisierte Tests
+- 10.000 generierte Aufgaben (100 je aktiver Familie)
+- 1.600 unabhängige Generatorvarianten
+- fünf mobile Dock-Geometrien einschließlich vier iPhone-Viewports und Android
+- Cloud-Browser-Sichtprüfung nicht ausgeführt: Navigation zu `127.0.0.1:8080` wurde durch die Browser-Sicherheitsrichtlinie blockiert
+
 ## 2.0.0 – 2026-07-17
 
-### Eingabe und Prüfung
+- mobile PWA-Grundarchitektur mit Themenmehrfachauswahl, vier Stufen und drei Eingabemodi
+- sicherer Parser ohne `eval()`, lokale Tastatur, strukturierte Slots und Offline-Cache
+- 102 initial auditierte Familien, davon 99 aktiv
+- erster Schrittmodus, Hilfen, Skip/Undo und lokale Lernhistorie
 
-- persistente, dreistufige KopfMathe-Tastatur mit sicherem Minus auf iPhone
-- gemeinsamer Cursor-/Slot-Controller ohne native Aufgabeninputs
-- strukturierte Inline-Templates und Matrixnavigation
-- freie Formeleingabe mit Live-Interpretation für Brüche, Exponenten und Wurzeln
-- sicherer Parser ohne `eval()` für reelle, algebraische und komplexe Ausdrücke
-- Äquivalenzprüfung, ungeordnete Mengen, Matrixdimensionen, skalare Eigenvektoren und Winkel modulo `2π`
-
-### Produkt und UX
-
-- echte Themenmehrfachauswahl mit Alle/Keine und sechs Presets
-- neue Stufen Basis, Klausurstandard, Klausur+ und Transfer / Knobeln
-- unabhängiger Kopf- und Schrittmodus
-- progressive Hinweise, sofortiger Skip mit Undo und kompakte Lösungen
-- ähnliche/einfachere/schwierigere/spätere Aufgaben
-- Step Chips zum Einsetzen, Bearbeiten und Löschen
-- minimalistischer Dark Mode, Safe Areas, große Tap-Flächen und reduzierte Bewegung
-- lokaler Reset aller Lern- und Einstellungsdaten
-
-### Aufgaben
-
-- 102 auditierte Familien, 99 aktiv und 3 deaktiviert
-- 24 neue klausurnahe Familien für komplexe Zahlen, Ableitungen, Integrale, Taylor, Matrizen, LGS, Vektorräume, Orthogonalität und Zerlegungen
-- Basis-only-Sperre verhindert triviale Aufgaben bei Klausurstandard
-- metadatenbasierte Gewichtung, Wiederholungssperre und lokale Fehlerverstärkung
-
-### PWA und Qualität
-
-- Service-Worker-Cache `kopfmathe-v3-20260717` mit allen neuen Modulen
-- relative Pfade für `/KopfMatheDings/`
-- aktualisiertes Dark-Mode-Manifest
-- 144 automatisierte Tests einschließlich 10.098 generierter Aufgaben
-- statische Produktionsprüfung für Syntax, Manifest, Assets und Offline-Cache
+Die Aussagen dieses Abschnitts beschreiben den damaligen Stand; die oben genannten Reparaturen ersetzen unvollständige 2.0.0-Verhaltensweisen.

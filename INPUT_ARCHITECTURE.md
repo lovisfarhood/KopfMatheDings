@@ -1,100 +1,107 @@
 # Eingabearchitektur
 
-## Ziel
+## Komponenten und Docking
 
-Das Eingabesystem optimiert die mobile Rechenzeit statt die Anzahl sichtbarer Formularfelder. Alle Antworten verwenden denselben `MathInputController` und dieselbe dauerhaft angedockte `MathKeyboard`. Ein Aufgabenwechsel erzeugt neue Antwortdaten, aber keine neue Systemtastatur und keinen unkontrollierten Viewport-Sprung.
-
-## Die drei Antwortmodi
-
-### 1. Multiple Choice
-
-`inputSpec.type = "choice"` rendert eine zugängliche Radiogruppe aus großen Buttons. Die mathematische Tastatur bleibt als stabile Dock-Fläche bestehen; Eingabetasten sind gedimmt, Navigation und **Prüfen** bleiben erreichbar. Distraktoren werden innerhalb der Generatorfamilie aus typischen Fehlern gebildet.
-
-### 2. Strukturierte Inline-Eingabe
-
-`fields` und `matrix` erzeugen ein einziges logisches Antwortobjekt. Sichtbare Slots sind `role="textbox"`-Elemente ohne native Texteingabe. Der Controller verwaltet Werte, aktive Position und Cursor gemeinsam.
-
-Beispiele:
-
-- `[a]x + [b]`
-- `r = [r], φ = [φ]`
-- `(x, y) = ([x], [y])`
-- kleine Matrizen mit Zeilen- und Spaltennavigation
-
-Pfeil rechts wechselt am Slotende zum nächsten Slot; Pfeil links kehrt am Slotanfang zurück. Oben/unten navigiert in Matrizen um eine Zeile. Tab wechselt innerhalb einer Slotgruppe und verlässt am Rand wieder regulär den Editor.
-
-### 3. Freie mathematische Eingabe
-
-`number`, `set` und `expression` verwenden einen kompakten linearen Editor plus Live-Interpretation. Der Nutzer kann beispielsweise
+`#keyboard-dock.keyboard-dock` ist die äußere, fest positionierte Dock-Komponente. `MathKeyboard` ergänzt oder ersetzt diese Klasse nie. Beim Start wird genau ein inneres Element erzeugt:
 
 ```text
--3/2*x^2 + 4*x - 1
+section.keyboard-dock
+└── div.math-keyboard
+    ├── Ebenen
+    ├── Navigation + Prüfen
+    └── Tastenraster
 ```
 
-eingeben. Parallel rendert die App Bruch, Exponent, implizite Multiplikation und Minus typografisch. Unvollständige Syntax liefert eine verständliche Meldung wie „Zur Klammer fehlt der Abschluss“ und keine interne Parserausgabe.
+Beim Aufgabenwechsel wird nur der aktive Controller mit `setController()` ausgetauscht. Die Tastatur bleibt im DOM, fährt nicht neu ein und verliert ihre Position nicht. Multiple Choice setzt lediglich `.is-choice` auf der inneren Fläche; nicht benötigte Tasten werden gedimmt.
 
-## Tastatur
+`workspace-dock` liegt mit `bottom: keyboard-height + safe-area-inset-bottom` exakt über der Tastatur. Der Aufgabenbereich erhält Bottom-Padding aus Tastatur-, Workspace- und Sicherheitsbereich. `src/ui/layout.js` stellt dieselben Geometrien als testbare Funktion bereit.
 
-Die Tastatur wird einmal beim App-Start angelegt und im Training nur mit dem aktiven Controller verbunden. Ihre drei Ebenen sind bewusst verwandt und klein:
+## Einheitliche Controller-Schnittstelle
 
-- **Basis:** 0–9, Minus, Plus, Multiplikation, Division, Dezimalkomma, Klammern, Gleichheit, Semikolon, `x`, `i`
-- **Funktionen:** `x`, `y`, `t`, `e`, `i`, `π`, `sin`, `cos`, `tan`, `ln`, `log`, Potenz, Quadrat, Wurzel, Betrag
-- **Strukturen:** Bruch, Exponent, Wurzel, Klammern, Mengen- und Intervallklammern, Komma, Semikolon, Cursor, Matrixnavigation, Rücktaste und Leeren
+Alle Eingabecontroller bieten:
 
-Cursor links/rechts, Rücktaste und **Prüfen** liegen zusätzlich in einer immer sichtbaren Navigationszeile. Alle Tasten haben mindestens ungefähr 44 × 44 CSS-Pixel.
+- `collect()`
+- `serialize()`
+- `restore(serialized)`
+- `insertSerialized(serialized)`
+- `displayValue()`
+- `isComplete()`
 
-## Cursor- und Template-Modell
-
-`MathEntryModel` besitzt eine geordnete Liste von Slots:
+Serialisierte Werte tragen ihren Typ:
 
 ```js
-{ key, value, cursor }
+{ type: "expression", value: "-3/2*x^2+4*x-1" }
+{ type: "number", value: "-7" }
+{ type: "set", value: "-2;3" }
+{ type: "fields", values: { A: "2", B: "-3" } }
+{ type: "fields", subtype: "vector", values: { x: "2", y: "-1" } }
+{ type: "matrix", rows: 2, columns: 2, values: [["1", "2"], ["3", "4"]] }
 ```
 
-Templates werden als sichere Textsegmente und Slotreferenzen beschrieben. Bruch, Potenz, Wurzel und Funktionen fügen balancierte lineare Strukturen ein und platzieren den Cursor direkt im ersten relevanten Bereich:
+Restore prüft Typ, Feldschlüssel, Subtyp und Matrixdimensionen. Ein inkompatibler Chip wird nicht teilweise eingesetzt. Leere strukturierte Antworten gelten nicht als vollständig.
 
-- Bruch → `()/()`; Cursor im Zähler
-- Potenz → `^()`; Cursor im Exponenten
-- Wurzel → `sqrt()`; Cursor im Radikanden
-- Funktion → `sin()` usw.; Cursor im Argument
+## Drei Antwortmodi
 
-Rechtsnavigation überschreitet schließende Klammern und verlässt dadurch Exponenten, Brüche und Funktionsargumente. Das sichtbare Caret bleibt immer im aktiven Slot. Diese lineare Repräsentation ist absichtlich schneller und robuster als ein vollständiges mobiles Schreibblatt.
+### Multiple Choice
 
-## Hardware-Tastatur und Fokus
+`choice` rendert eine ARIA-Radiogruppe. Genau eine Antwort ist aktiv. Prüfen ohne Auswahl liefert eine verständliche Meldung.
 
-Fokussierbare, nicht editierbare DOM-Elemente verhindern das automatische Öffnen der iPhone-Tastatur. `keydown` verarbeitet Zahlen, Buchstaben, Rechenzeichen, Pfeile, Backspace, Delete, Escape, Tab und Enter. Unbekannte Tastenkombinationen werden nicht abgefangen. Sichtbare `:focus-visible`-Ränder, ARIA-Labels und `aria-valuetext` geben Position und Inhalt wieder.
+### Strukturierte Inline-Eingabe
 
-## Parser
+`fields` und `matrix` besitzen ein gemeinsames `MathEntryModel`. Jeder Slot speichert Schlüssel, Wert und Cursor. Pfeile wechseln an Slotgrenzen, oben/unten navigiert um eine Matrixzeile, Tab wechselt intern und verlässt den Editor am äußeren Rand.
 
-`src/core/expression.js` implementiert einen rekursiven Pratt-/Präzedenzparser. Unterstützt werden:
+Vektoren sind `fields` mit `subtype: "vector"`. Matrizen speichern zusätzlich Zeilen- und Spaltenzahl.
 
-- Dezimalpunkt und Dezimalkomma
-- wissenschaftliche Schreibweise
-- `+`, `−`, `*`, `/`, `^`
-- implizite Multiplikation wie `2x`
-- runde, eckige und geschweifte Klammern
-- `sqrt`, `sin`, `cos`, `tan`, `ln`, `log`, `abs`, `exp`
-- `π`, `e`, `i`
-- reelle und komplexe Auswertung
+### Freie mathematische Eingabe
 
-Es gibt kein `eval()`, keinen `Function`-Konstruktor und keine dynamische Codeausführung. Unbekannte Bezeichner sind nur mathematische Variablen; bei konkreten Zahlenantworten werden sie abgewiesen.
+`number`, `expression`, `set` und `interval` verwenden eine lineare, sichere Quellrepräsentation. Der aktive Editor rendert diese Quelle unmittelbar strukturiert:
 
-## Antwortprüfung
+- `()/()` als visuellen Bruch; Caret startet im Zähler
+- `^()` als hochgestellten Exponenten
+- `sqrt()` mit Radikandenbereich
+- `sin()`, `cos()`, `ln()` usw. mit Argumentbereich
+- gepaarte Klammern und sichtbare leere Strukturplätze
 
-- Zahlen werden, wenn möglich, als gekürzte rationale Zahl verglichen; exakte Konstantenausdrücke werden sicher ausgewertet.
-- Algebraische Ausdrücke werden geparst und an mehreren kontrollierten, domänengültigen Stellen verglichen. Mindestens vier unabhängige gültige Punkte sind erforderlich.
-- Lösungsmengen werden ohne Reihenfolge und mit korrekter Kardinalität verglichen.
-- Matrizen benötigen exakt die verlangte Dimension und werden elementweise geprüft.
-- Eigenvektoren werden proportional verglichen; der Nullvektor ist ausgeschlossen.
-- Komplexe Zahlen werden als Real-/Imaginärpaar ausgewertet, einschließlich Eulerform.
-- Winkel werden modulo einer expliziten Periode, standardmäßig `2π`, verglichen.
+Die Cursorbewegung folgt den Quellpositionen. Dadurch gelangt Pfeil rechts vom Zähler in den Nenner und anschließend aus dem Bruch, beziehungsweise aus Exponent, Wurzel oder Funktionsargument. Bei noch unvollständiger Hardware-Eingabe fällt nur die betreffende Darstellung konservativ auf lineare Anzeige zurück.
+
+Die Quelle bleibt absichtlich linear; die sichtbare Bearbeitung ist für die unterstützten Kurzformen zweidimensional. Es wird keine externe Editorbibliothek und kein vollständiger LaTeX-/Handschrifteditor behauptet.
+
+## Tastatur und native Systemtastatur
+
+Die drei Ebenen Basis, Funktionen und Strukturen verwenden dieselbe Komponente. Minus, Navigation, Rücktaste und Prüfen bleiben erreichbar. Aufgabeneditoren sind keine `input`- oder `textarea`-Elemente; sie tragen `role="textbox"`, `inputmode="none"` und `virtualkeyboardpolicy="manual"`. Pointer-Fokus wird ohne native Texteingabe gesetzt. Hardware-Tastaturen verarbeiten Zahlen, Variablen, Operatoren, Pfeile, Backspace, Delete, Escape, Tab und Enter.
 
 ## Schrittmodus
 
-Eine Aufgabe kann zwei bis fünf `steps` mit eigenem Prompt, Input-Spec, Antwort, Erklärung und Chipwert besitzen. Nach einem korrekten Schritt wird der Chip gespeichert und der nächste Schritt geladen. **Direktantwort** wechselt jederzeit zur Gesamtantwort. Allgemeine Aufgaben können über **Ergebnis merken** ebenfalls Chips anlegen.
+Eine Familie darf `taskModes: ["step", ...]` nur führen, wenn jede erzeugte Aufgabe mindestens zwei Schritte besitzt. Jeder Schritt benötigt Prompt, Eingabedefinition, Antwort und Erklärung und wird mit `checkTaskAnswer()` validiert.
 
-## Warum keine externe Editorbibliothek?
+Aktive Schrittfamilien:
 
-Der bestehende Vanilla-JS-Stack benötigte keinen vollständigen Neuaufbau als CAS oder digitales Schreibpapier. Die verlangten kurzen HM1-Ausdrücke lassen sich mit einem kleinen, auditierten Parser und kontrollierter DOM-Darstellung vollständig offline abdecken. Die eigene Lösung vermeidet mehrere Megabyte Editor-/CAS-Code, externe Build-Schritte, Supply-Chain-Risiko und eine zweite konkurrierende virtuelle Tastatur. Sie bleibt lokal gebündelt, PWA-tauglich und testbar.
+- `integrals.partial-fractions` – drei Schritte
+- `taylor.shifted-exp` – zwei Schritte
+- `linearSystems.gauss-steps` – drei Schritte
+- `decompositions.lu-complete` – drei Schritte
 
-Diese Entscheidung wäre neu zu bewerten, falls später mehrzeilige Herleitungen, allgemeine LaTeX-Eingabe, Handschrift oder vollständige symbolische Beweise gefordert werden.
+Automatische und manuelle Chips speichern immer `controller.serialize()`, nie nur den aktiven Slot. Direktantwort und Schrittansicht verwenden denselben Controllervertrag.
+
+## Parser
+
+`src/core/expression.js` implementiert einen rekursiven Präzedenzparser ohne dynamische Codeausführung.
+
+Unterstützt werden Zahlen, Dezimalpunkt/-komma, wissenschaftliche Schreibweise, `+ − * / ^`, Klammern, Funktionen, `pi/e/i`, Gleichungen und implizite Multiplikation. Standard-Einzelvariablen sind `x y z t n k a b c r` und `lambda`. Eine Aufgabe kann `allowedVariables` setzen; mehrbuchstabige ausdrücklich registrierte Variablen bleiben dann atomar, sonst wird etwa `xy` als `x*y` gelesen.
+
+## Äquivalenzmodi
+
+- `algebraic`: Wertegleichheit an kontrollierten gültigen Punkten
+- `equation`: beide Seiten als Nullform; Polynome bis auf einen von null verschiedenen Skalar normalisiert
+- `strict-domain`: algebraische Gleichheit plus Definitionsbereich an expliziten Ausschlüssen und erkannten Nennernullstellen
+- `factored`: algebraisch korrekt und als Produkt additiver Faktoren
+- `expanded`: algebraisch korrekt ohne nicht ausmultiplizierte Summenprodukte
+- `cartesian-complex`: kartesische komplexe Darstellung
+- `polar-complex`: Polar-/Eulerstruktur
+- `partial-fractions`: Summe mehrerer Bruchterme
+
+Verlangte Formen werden durch `makeTask()` sichtbar im Prompt ergänzt oder im Schritttext ausdrücklich genannt.
+
+## Grenzen
+
+Der Parser ist kein CAS. Polynomgleichungen werden exakt strukturell normalisiert; allgemeinere Gleichungen verwenden eine konservative Proportionalitätsprüfung der Nullformen. Automatische Definitionsbereichserkennung konzentriert sich auf explizite Ausschlüsse, Nennernullstellen und elementare reelle Funktionsbedingungen. Allgemeine branchensensitive Identitäten können abgelehnt werden.

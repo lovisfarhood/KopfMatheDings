@@ -1,7 +1,10 @@
 const EPSILON = 1e-9;
+const EDITOR_CARET = "\uE000";
+const EDITOR_PLACEHOLDER = "\uE001";
 
 const FUNCTION_NAMES = new Set(["sqrt", "sin", "cos", "tan", "ln", "log", "abs", "exp"]);
 const CONSTANT_NAMES = new Set(["pi", "e", "i"]);
+const DEFAULT_VARIABLE_NAMES = new Set(["x", "y", "z", "t", "n", "k", "a", "b", "c", "r", "lambda"]);
 
 export function normalizeExpression(value) {
   return String(value ?? "")
@@ -24,14 +27,24 @@ function isLetterOrDigit(char) {
   return /[\p{L}\d_]/u.test(char || "");
 }
 
-function tokenize(source) {
+function tokenize(source, options = {}) {
   const input = normalizeExpression(source);
   const tokens = [];
+  const explicitVariables = Array.isArray(options.allowedVariables)
+    ? new Set(options.allowedVariables.map(value => String(value).toLowerCase()))
+    : null;
+  const splittableVariables = explicitVariables || DEFAULT_VARIABLE_NAMES;
   let index = 0;
 
   while (index < input.length) {
     const char = input[index];
     if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+
+    if (char === EDITOR_CARET || char === EDITOR_PLACEHOLDER) {
+      tokens.push({ type: char === EDITOR_CARET ? "caret" : "placeholder", value: char });
       index += 1;
       continue;
     }
@@ -72,7 +85,13 @@ function tokenize(source) {
       index += 1;
       while (isLetterOrDigit(input[index])) index += 1;
       const value = input.slice(start, index).toLowerCase();
-      tokens.push({ type: "id", value });
+      if (FUNCTION_NAMES.has(value) || CONSTANT_NAMES.has(value) || value === "lambda" || explicitVariables?.has(value)) {
+        tokens.push({ type: "id", value });
+      } else if ([...value].length > 1 && [...value].every(part => splittableVariables.has(part))) {
+        for (const part of value) tokens.push({ type: "id", value: part });
+      } else {
+        tokens.push({ type: "id", value });
+      }
       continue;
     }
 
@@ -94,8 +113,12 @@ function binary(op, left, right, implicit = false) {
 }
 
 class Parser {
-  constructor(source) {
-    this.tokens = tokenize(source);
+  constructor(source, options = {}) {
+    this.options = options;
+    this.allowedVariables = Array.isArray(options.allowedVariables)
+      ? new Set(options.allowedVariables.map(value => String(value).toLowerCase()))
+      : null;
+    this.tokens = tokenize(source, options);
     this.index = 0;
   }
 
@@ -145,7 +168,7 @@ class Parser {
   }
 
   startsPrimary(token = this.current()) {
-    return token.type === "number" || token.type === "id" || ["(", "[", "{", "|"].includes(token.type);
+    return token.type === "number" || token.type === "id" || token.type === "caret" || token.type === "placeholder" || ["(", "[", "{", "|"].includes(token.type);
   }
 
   parseMultiplicative() {
@@ -182,6 +205,8 @@ class Parser {
   }
 
   parsePrimary() {
+    if (this.consume("caret")) return { type: "caret" };
+    if (this.consume("placeholder")) return { type: "placeholder" };
     const number = this.consume("number");
     if (number) return { type: "number", value: number.value, raw: number.raw };
 
@@ -192,6 +217,9 @@ class Parser {
         const argument = this.parseEquation();
         this.expect(")", `Bei ${identifier.value} fehlt die schließende Klammer.`);
         return { type: "call", name: identifier.value, argument };
+      }
+      if (this.allowedVariables && !CONSTANT_NAMES.has(identifier.value) && !this.allowedVariables.has(identifier.value)) {
+        throw new SyntaxError(`Die Variable „${identifier.value}“ ist in dieser Aufgabe nicht vorgesehen.`);
       }
       return { type: "identifier", name: identifier.value };
     }
@@ -216,8 +244,8 @@ class Parser {
   }
 }
 
-export function parseExpression(source) {
-  return new Parser(source).parse();
+export function parseExpression(source, options = {}) {
+  return new Parser(source, options).parse();
 }
 
 const complex = (re, im = 0) => ({ re: Number(re), im: Number(im) });
@@ -265,6 +293,7 @@ function evaluateCall(name, argument) {
 }
 
 export function evaluateExpression(ast, variables = {}) {
+  if (ast.type === "caret" || ast.type === "placeholder") throw new SyntaxError("Der Ausdruck ist noch nicht vollständig.");
   if (ast.type === "number") return complex(ast.value);
   if (ast.type === "identifier") {
     if (ast.name === "pi") return complex(Math.PI);
@@ -310,8 +339,11 @@ function closeEnough(left, right, tolerance = 1e-8) {
 }
 
 export function equivalentExpressions(actualSource, expectedSource, options = {}) {
-  const actual = parseExpression(actualSource);
-  const expected = parseExpression(expectedSource);
+  const actual = parseExpression(actualSource, options);
+  const expected = parseExpression(expectedSource, options);
+  if (actual.type === "equation" || expected.type === "equation") {
+    return actual.type === "equation" && expected.type === "equation" && equivalentEquationAsts(actual, expected, options);
+  }
   const names = [...new Set([...variablesIn(actual), ...variablesIn(expected)])].sort();
   const tolerance = options.tolerance ?? 1e-8;
 
@@ -340,6 +372,229 @@ export function evaluateConstant(source) {
   const ast = parseExpression(source);
   if (variablesIn(ast).size) throw new ReferenceError("Die Antwort muss eine konkrete Zahl sein.");
   return evaluateExpression(ast);
+}
+
+const monomialToMap = key => new Map(key ? key.split("|").map(part => {
+  const separator = part.lastIndexOf(":");
+  return [part.slice(0, separator), Number(part.slice(separator + 1))];
+}) : []);
+
+const monomialFromMap = powers => [...powers.entries()]
+  .filter(([, exponent]) => exponent)
+  .sort(([left], [right]) => left.localeCompare(right))
+  .map(([name, exponent]) => `${name}:${exponent}`)
+  .join("|");
+
+function addPolynomial(left, right, factor = 1) {
+  const result = new Map(left);
+  for (const [key, value] of right) result.set(key, (result.get(key) || 0) + factor * value);
+  for (const [key, value] of result) if (Math.abs(value) < 1e-12) result.delete(key);
+  return result;
+}
+
+function multiplyPolynomial(left, right) {
+  const result = new Map();
+  for (const [leftKey, leftValue] of left) {
+    for (const [rightKey, rightValue] of right) {
+      const powers = monomialToMap(leftKey);
+      for (const [name, exponent] of monomialToMap(rightKey)) powers.set(name, (powers.get(name) || 0) + exponent);
+      const key = monomialFromMap(powers);
+      result.set(key, (result.get(key) || 0) + leftValue * rightValue);
+    }
+  }
+  return result;
+}
+
+function polynomialFromAst(ast) {
+  if (ast.type === "number") return new Map([["", ast.value]]);
+  if (ast.type === "identifier") {
+    if (ast.name === "pi") return new Map([["", Math.PI]]);
+    if (ast.name === "e") return new Map([["", Math.E]]);
+    if (ast.name === "i") return null;
+    return new Map([[`${ast.name}:1`, 1]]);
+  }
+  if (ast.type === "group") return polynomialFromAst(ast.value);
+  if (ast.type === "unary") {
+    const value = polynomialFromAst(ast.value);
+    return value && (ast.op === "-" ? new Map([...value].map(([key, coefficient]) => [key, -coefficient])) : value);
+  }
+  if (ast.type === "equation") {
+    const left = polynomialFromAst(ast.left), right = polynomialFromAst(ast.right);
+    return left && right ? addPolynomial(left, right, -1) : null;
+  }
+  if (ast.type !== "binary") return null;
+  const left = polynomialFromAst(ast.left), right = polynomialFromAst(ast.right);
+  if (!left || !right) return null;
+  if (ast.op === "+") return addPolynomial(left, right);
+  if (ast.op === "-") return addPolynomial(left, right, -1);
+  if (ast.op === "*") return multiplyPolynomial(left, right);
+  if (ast.op === "/") {
+    if (right.size !== 1 || !right.has("") || Math.abs(right.get("")) < EPSILON) return null;
+    return new Map([...left].map(([key, value]) => [key, value / right.get("")]));
+  }
+  if (ast.op === "^" && right.size === 1 && right.has("") && Number.isInteger(right.get("")) && right.get("") >= 0 && right.get("") <= 12) {
+    let result = new Map([["", 1]]);
+    for (let count = 0; count < right.get(""); count += 1) result = multiplyPolynomial(result, left);
+    return result;
+  }
+  return null;
+}
+
+function proportionalPolynomials(left, right, tolerance = 1e-9) {
+  const keys = [...new Set([...left.keys(), ...right.keys()])].sort();
+  const pivot = keys.find(key => Math.abs(left.get(key) || 0) > tolerance || Math.abs(right.get(key) || 0) > tolerance);
+  if (pivot === undefined) return true;
+  const leftPivot = left.get(pivot) || 0, rightPivot = right.get(pivot) || 0;
+  if (Math.abs(leftPivot) <= tolerance || Math.abs(rightPivot) <= tolerance) return false;
+  const factor = leftPivot / rightPivot;
+  return keys.every(key => Math.abs((left.get(key) || 0) - factor * (right.get(key) || 0)) <= tolerance * Math.max(1, Math.abs(left.get(key) || 0)));
+}
+
+function equivalentEquationAsts(actual, expected, options = {}) {
+  const actualPolynomial = polynomialFromAst(actual);
+  const expectedPolynomial = polynomialFromAst(expected);
+  if (actualPolynomial && expectedPolynomial) return proportionalPolynomials(actualPolynomial, expectedPolynomial, options.tolerance ?? 1e-8);
+
+  const names = [...new Set([...variablesIn(actual), ...variablesIn(expected)])].sort();
+  const samples = [-2 * Math.PI, -Math.PI, -3.25, -2, -1, -0.35, 0, 0.4, 1, 1.75, Math.PI, 4.2, 2 * Math.PI];
+  let ratio = null, valid = 0, ratios = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    const values = Object.fromEntries(names.map((name, offset) => [name, samples[(index + offset * 3) % samples.length] + offset * 0.137]));
+    try {
+      const left = evaluateExpression(actual, values), right = evaluateExpression(expected, values);
+      if (![left.re, left.im, right.re, right.im].every(Number.isFinite)) continue;
+      valid += 1;
+      const leftZero = magnitude(left) < 1e-8, rightZero = magnitude(right) < 1e-8;
+      if (leftZero !== rightZero) return false;
+      if (leftZero) continue;
+      const current = div(left, right);
+      if (ratio === null) ratio = current;
+      else if (!closeEnough(current, ratio, options.tolerance ?? 1e-7)) return false;
+      ratios += 1;
+    } catch {
+      // Only common valid sample points contribute.
+    }
+  }
+  return valid >= 5 && ratios >= 3;
+}
+
+export function equivalentEquations(actualSource, expectedSource, options = {}) {
+  const actual = parseExpression(actualSource, options);
+  const expected = parseExpression(expectedSource, options);
+  if (actual.type !== "equation" || expected.type !== "equation") return false;
+  return equivalentEquationAsts(actual, expected, options);
+}
+
+function denominatorRoots(ast, roots = []) {
+  if (ast.type === "binary" && ast.op === "/") {
+    const polynomial = polynomialFromAst(ast.right);
+    if (polynomial) {
+      const names = new Set([...polynomial.keys()].flatMap(key => [...monomialToMap(key).keys()]));
+      if (names.size === 1) {
+        const name = [...names][0];
+        const coefficient = degree => polynomial.get(degree ? `${name}:${degree}` : "") || 0;
+        const a = coefficient(2), b = coefficient(1), c = coefficient(0);
+        if (Math.abs(a) > EPSILON) {
+          const discriminant = b * b - 4 * a * c;
+          if (discriminant >= 0) {
+            roots.push({ name, value: (-b + Math.sqrt(discriminant)) / (2 * a) });
+            roots.push({ name, value: (-b - Math.sqrt(discriminant)) / (2 * a) });
+          }
+        } else if (Math.abs(b) > EPSILON) roots.push({ name, value: -c / b });
+      }
+    }
+  }
+  for (const child of [ast.value, ast.argument, ast.left, ast.right]) if (child && typeof child === "object") denominatorRoots(child, roots);
+  return roots;
+}
+
+function definedOnRealDomain(ast, values) {
+  if (ast.type === "binary" && ast.op === "/") {
+    if (!definedOnRealDomain(ast.left, values) || !definedOnRealDomain(ast.right, values)) return false;
+    try { if (magnitude(evaluateExpression(ast.right, values)) < 1e-10) return false; } catch { return false; }
+  }
+  if (ast.type === "call") {
+    if (!definedOnRealDomain(ast.argument, values)) return false;
+    try {
+      const argument = evaluateExpression(ast.argument, values);
+      if (Math.abs(argument.im) > 1e-9) return false;
+      if ((ast.name === "ln" || ast.name === "log") && argument.re <= 0) return false;
+      if (ast.name === "sqrt" && argument.re < 0) return false;
+      if (ast.name === "tan" && Math.abs(Math.cos(argument.re)) < 1e-10) return false;
+    } catch { return false; }
+  }
+  for (const child of [ast.value, ast.left, ast.right]) {
+    if (child && typeof child === "object" && !definedOnRealDomain(child, values)) return false;
+  }
+  try {
+    const result = evaluateExpression(ast, values);
+    return [result.re, result.im].every(Number.isFinite);
+  } catch {
+    return false;
+  }
+}
+
+export function strictDomainEquivalent(actualSource, expectedSource, options = {}) {
+  if (!equivalentExpressions(actualSource, expectedSource, { ...options, equivalenceMode: "algebraic" })) return false;
+  const actual = parseExpression(actualSource, options), expected = parseExpression(expectedSource, options);
+  const names = [...new Set([...variablesIn(actual), ...variablesIn(expected)])].sort();
+  if (!names.length) return true;
+  const firstName = names[0];
+  const explicit = (options.excludedValues || []).map(value => ({ name: firstName, value: Number(evaluateConstant(value).re), explicit: true }));
+  const candidates = [...denominatorRoots(actual), ...denominatorRoots(expected), ...explicit];
+  for (const candidate of candidates) {
+    const values = Object.fromEntries(names.map((name, index) => [name, name === candidate.name ? candidate.value : 0.731 + index]));
+    const actualDefined = definedOnRealDomain(actual, values);
+    const explicitlyExcluded = explicit.some(item => item.name === candidate.name && Math.abs(item.value - candidate.value) < 1e-9);
+    const expectedDefined = explicitlyExcluded ? false : definedOnRealDomain(expected, values);
+    if (actualDefined !== expectedDefined) return false;
+  }
+  return true;
+}
+
+function unwrapGroup(ast) {
+  return ast?.type === "group" ? unwrapGroup(ast.value) : ast;
+}
+
+function containsAdditive(ast) {
+  const node = unwrapGroup(ast);
+  return node?.type === "binary" && (node.op === "+" || node.op === "-");
+}
+
+function containsCall(ast, names) {
+  if (ast?.type === "call" && names.has(ast.name)) return true;
+  return [ast?.value, ast?.argument, ast?.left, ast?.right].some(child => child && typeof child === "object" && containsCall(child, names));
+}
+
+function divisionCount(ast) {
+  if (!ast || typeof ast !== "object") return 0;
+  return (ast.type === "binary" && ast.op === "/" ? 1 : 0) + [ast.value, ast.argument, ast.left, ast.right].reduce((sum, child) => sum + divisionCount(child), 0);
+}
+
+export function matchesRequiredForm(source, mode, options = {}) {
+  const ast = parseExpression(source, options);
+  const node = unwrapGroup(ast);
+  if (!mode || mode === "algebraic" || mode === "strict-domain") return true;
+  if (mode === "equation") return node.type === "equation";
+  if (mode === "factored") {
+    return node.type === "binary" && node.op === "*" && (containsAdditive(node.left) || containsAdditive(node.right));
+  }
+  if (mode === "expanded") {
+    const unexpanded = current => {
+      const value = unwrapGroup(current);
+      if (!value || typeof value !== "object") return false;
+      if (value.type === "binary" && value.op === "*" && (containsAdditive(value.left) || containsAdditive(value.right))) return true;
+      if (value.type === "binary" && value.op === "^" && containsAdditive(value.left)) return true;
+      return [value.value, value.argument, value.left, value.right].some(child => child && unexpanded(child));
+    };
+    return !unexpanded(node);
+  }
+  if (mode === "cartesian-complex") {
+    return variablesIn(node).size === 0 && !containsCall(node, new Set(["sin", "cos", "exp"]));
+  }
+  if (mode === "polar-complex") return containsCall(node, new Set(["sin", "cos", "exp"])) && variablesIn(node).size === 0;
+  if (mode === "partial-fractions") return divisionCount(node) >= 2;
+  return false;
 }
 
 export function splitTopLevel(source) {
@@ -371,6 +626,8 @@ const escapeHtml = value => String(value).replace(/[&<>"']/g, char => ({
 const PRECEDENCE = { equation: 0, "+": 1, "-": 1, "*": 2, "/": 2, "^": 4, unary: 3, atom: 5 };
 
 function renderNode(node, parentPrecedence = -1) {
+  if (node.type === "caret") return '<span class="entry-caret" aria-hidden="true"></span>';
+  if (node.type === "placeholder") return '<span class="entry-placeholder" aria-hidden="true">□</span>';
   if (node.type === "number") return escapeHtml(node.raw);
   if (node.type === "identifier") return node.name === "pi" ? "π" : escapeHtml(node.name);
   if (node.type === "group") {
@@ -405,11 +662,11 @@ function renderNode(node, parentPrecedence = -1) {
   return "";
 }
 
-export function formatExpression(source) {
+export function formatExpression(source, options = {}) {
   const parts = splitTopLevel(source);
   if (!parts.length) return { ok: false, html: "", text: "", error: "Noch keine Eingabe." };
   try {
-    const asts = parts.map(parseExpression);
+    const asts = parts.map(part => parseExpression(part, options));
     return {
       ok: true,
       html: asts.map(ast => renderNode(ast)).join(" <span class=\"expr-separator\">;</span> "),
@@ -421,6 +678,29 @@ export function formatExpression(source) {
       ok: false,
       html: escapeHtml(normalizeExpression(source).replace(/\*/g, "·").replace(/-/g, "−")),
       text: normalizeExpression(source),
+      error: error instanceof Error ? error.message : "Der Ausdruck ist noch nicht vollständig."
+    };
+  }
+}
+
+export function formatEditorExpression(source, cursor, options = {}) {
+  const value = String(source ?? "");
+  const position = Math.max(0, Math.min(value.length, Number(cursor) || 0));
+  let candidate = `${value.slice(0, position)}${EDITOR_CARET}${value.slice(position)}`;
+  candidate = candidate
+    .replace(/\(\)/g, `(${EDITOR_PLACEHOLDER})`)
+    .replace(/\[\]/g, `[${EDITOR_PLACEHOLDER}]`)
+    .replace(/\{\}/g, `{${EDITOR_PLACEHOLDER}}`)
+    .replace(/(^|[+*/=(;,])\^/g, `$1${EDITOR_PLACEHOLDER}^`);
+  try {
+    const ast = parseExpression(candidate, options);
+    return { ok: true, html: renderNode(ast), ast };
+  } catch (error) {
+    const before = escapeHtml(normalizeExpression(value.slice(0, position)).replace(/\*/g, "·").replace(/-/g, "−"));
+    const after = escapeHtml(normalizeExpression(value.slice(position)).replace(/\*/g, "·").replace(/-/g, "−"));
+    return {
+      ok: false,
+      html: `${before}<span class="entry-caret" aria-hidden="true"></span>${after}`,
       error: error instanceof Error ? error.message : "Der Ausdruck ist noch nicht vollständig."
     };
   }

@@ -1,6 +1,6 @@
 import { createRng } from "./random.js";
 import { canonicalRaw, checkTaskAnswer } from "./checker.js";
-import { makeTask, numberInput, DIFFICULTIES } from "../topics/helpers.js";
+import { DIFFICULTIES } from "../topics/helpers.js";
 import { generators as basics } from "../topics/basics.js";
 import { generators as algebra } from "../topics/algebra.js";
 import { generators as complex } from "../topics/complex.js";
@@ -83,6 +83,7 @@ const map = Object.fromEntries(Object.entries(legacyMap).map(([topic, generators
 export const allGenerators = Object.freeze(Object.values(map).flat());
 export const registry = Object.freeze(allGenerators.filter(generator => generator.active));
 export const disabledGenerators = Object.freeze(allGenerators.filter(generator => !generator.active));
+export const stepGenerators = Object.freeze(registry.filter(generator => generator.taskModes.includes("step")));
 
 const EXAM_WEIGHTS = Object.freeze({
   algebra: 7,
@@ -145,11 +146,16 @@ function outcomeBoost(generator, outcomes) {
 }
 
 function candidatesFor({ topics, difficulty, mode, matlabEnabled, forcedGeneratorId }) {
+  const selected = normalizedTopics(topics, matlabEnabled);
   if (forcedGeneratorId) {
     const forced = registry.find(generator => generator.id === forcedGeneratorId);
-    return forced ? [forced] : [];
+    return forced
+      && selected.includes(forced.topic)
+      && forced.levels.includes(difficulty)
+      && forced.taskModes.includes(mode)
+      ? [forced]
+      : [];
   }
-  const selected = normalizedTopics(topics, matlabEnabled);
   return registry.filter(generator => selected.includes(generator.topic)
     && generator.levels.includes(difficulty)
     && generator.taskModes.includes(mode));
@@ -162,6 +168,7 @@ export function validateTask(task) {
   const result = checkTaskAnswer(task, canonicalRaw(task));
   if (!result.valid || !result.correct) return false;
   if (!Array.isArray(task.hints) || !task.hints.length) return false;
+  if (task.sessionMode === "step" && (!Array.isArray(task.steps) || task.steps.length < 2)) return false;
   if (task.steps?.some(step => {
     if (!step.prompt || !step.inputSpec || !step.answer || !step.explanation) return true;
     const stepResult = checkTaskAnswer(step, canonicalRaw(step));
@@ -170,20 +177,25 @@ export function validateTask(task) {
   return true;
 }
 
-function fallback(rng, difficulty) {
-  const a = rng.int(-9, 9), b = rng.int(-9, 9);
-  return Object.freeze(makeTask({
-    topic: "basics",
-    id: "fallback.add",
-    title: "Ersatzaufgabe",
-    difficulty,
-    prompt: `<span class="context">Berechne.</span><span class="math">${a}+(${b})</span>`,
-    input: numberInput(),
-    answer: { type: "number", value: a + b },
-    explanation: `${a}+(${b})=<strong>${a + b}</strong>.`,
-    complexity: 1,
-    signature: `${a}:${b}:${rng.int(0, 99999)}`
-  }));
+function unavailable({ topics, difficulty, mode, reason = "no-candidates" }) {
+  return Object.freeze({
+    unavailable: true,
+    reason,
+    topics: [...normalizedTopics(topics, true)],
+    requestedDifficulty: difficulty,
+    mode,
+    message: mode === "step"
+      ? "Für diese Themenauswahl gibt es auf dieser Stufe noch keine mehrstufige Aufgabe. Passe Themen oder Schwierigkeit an."
+      : "Für diese Themenauswahl gibt es auf dieser Stufe noch keine passende Aufgabe. Passe Themen oder Schwierigkeit an."
+  });
+}
+
+function neighboringDifficulties(difficulty) {
+  const order = Object.keys(DIFFICULTIES);
+  const index = order.indexOf(difficulty);
+  return order
+    .filter(level => level !== difficulty)
+    .sort((left, right) => Math.abs(order.indexOf(left) - index) - Math.abs(order.indexOf(right) - index));
 }
 
 export function generateTask({
@@ -197,12 +209,23 @@ export function generateTask({
   forcedGeneratorId = null,
   seed
 } = {}) {
-  const rng = createRng(seed);
+  const effectiveSeed = seed ?? `${Date.now()}-${Math.random()}`;
+  const rng = createRng(effectiveSeed);
   const resolvedDifficulty = resolveDifficulty(rng, difficulty);
   const selectedTopics = topics || topic || PRESETS.exam.topics;
-  let candidates = candidatesFor({ topics: selectedTopics, difficulty: resolvedDifficulty, mode, matlabEnabled, forcedGeneratorId });
-  if (!candidates.length) candidates = candidatesFor({ topics: selectedTopics, difficulty: "standard", mode, matlabEnabled, forcedGeneratorId });
-  if (!candidates.length) return fallback(rng, resolvedDifficulty);
+  let generatedDifficulty = resolvedDifficulty;
+  let candidates = candidatesFor({ topics: selectedTopics, difficulty: generatedDifficulty, mode, matlabEnabled, forcedGeneratorId });
+  if (!candidates.length) {
+    for (const neighboring of neighboringDifficulties(resolvedDifficulty)) {
+      const nearby = candidatesFor({ topics: selectedTopics, difficulty: neighboring, mode, matlabEnabled, forcedGeneratorId });
+      if (nearby.length) {
+        generatedDifficulty = neighboring;
+        candidates = nearby;
+        break;
+      }
+    }
+  }
+  if (!candidates.length) return unavailable({ topics: selectedTopics, difficulty: resolvedDifficulty, mode });
 
   const recentSignatures = new Set(history.slice(-30).map(item => typeof item === "object" ? item.signature : item));
   const recentFamilies = history.slice(-8).map(generatorIdFromHistory);
@@ -222,8 +245,13 @@ export function generateTask({
   for (let attempt = 0; attempt < 120; attempt += 1) {
     const generator = forcedGeneratorId ? candidates[0] : rng.weighted(weighted);
     try {
-      const generated = generator.generate(rng, resolvedDifficulty, { mode });
-      const task = Object.freeze({ ...generated, sessionMode: mode });
+      const generated = generator.generate(rng, generatedDifficulty, { mode });
+      const task = Object.freeze({
+        ...generated,
+        sessionMode: mode,
+        seed: effectiveSeed,
+        ...(generatedDifficulty !== resolvedDifficulty ? { difficultyAdjustedFrom: resolvedDifficulty } : {})
+      });
       if (!validateTask(task)) continue;
       last = task;
       if (!recentSignatures.has(task.signature)) return task;
@@ -231,7 +259,45 @@ export function generateTask({
       console.warn(`Generator ${generator.id} fehlgeschlagen`, error);
     }
   }
-  return last || fallback(rng, resolvedDifficulty);
+  return last || unavailable({ topics: selectedTopics, difficulty: resolvedDifficulty, mode, reason: "generation-failed" });
+}
+
+function closestSupportedLevel(generator, currentDifficulty, direction) {
+  const order = Object.keys(DIFFICULTIES);
+  const currentIndex = order.indexOf(currentDifficulty);
+  const directional = generator.levels
+    .filter(level => direction < 0 ? order.indexOf(level) <= currentIndex : order.indexOf(level) >= currentIndex)
+    .sort((left, right) => Math.abs(order.indexOf(left) - currentIndex) - Math.abs(order.indexOf(right) - currentIndex));
+  return directional[0] || [...generator.levels].sort((left, right) => Math.abs(order.indexOf(left) - currentIndex) - Math.abs(order.indexOf(right) - currentIndex))[0];
+}
+
+export function variantRequestFor(currentTask, direction) {
+  const generator = registry.find(item => item.id === currentTask?.generatorId);
+  const step = direction === "easier" || direction === -1 ? -1 : 1;
+  const mode = currentTask.sessionMode || "head";
+  if (!generator) return null;
+
+  const linkedId = step < 0 ? generator.easierPredecessor : generator.harderVariant;
+  if (linkedId) {
+    const linked = registry.find(item => item.id === linkedId);
+    if (linked && linked.topic === generator.topic && linked.competenceId === generator.competenceId && linked.taskModes.includes(mode)) {
+      return { generatorId: linked.id, difficulty: closestSupportedLevel(linked, currentTask.difficulty, step), competenceId: generator.competenceId };
+    }
+  }
+
+  const order = Object.keys(DIFFICULTIES);
+  const currentIndex = order.indexOf(currentTask.difficulty);
+  const sameFamilyLevel = generator.levels
+    .filter(level => step < 0 ? order.indexOf(level) < currentIndex : order.indexOf(level) > currentIndex)
+    .sort((left, right) => Math.abs(order.indexOf(left) - currentIndex) - Math.abs(order.indexOf(right) - currentIndex))[0];
+  if (sameFamilyLevel) return { generatorId: generator.id, difficulty: sameFamilyLevel, competenceId: generator.competenceId };
+
+  const related = registry
+    .filter(item => item.id !== generator.id && item.topic === generator.topic && item.competenceId === generator.competenceId && item.taskModes.includes(mode))
+    .map(item => ({ item, level: closestSupportedLevel(item, currentTask.difficulty, step) }))
+    .filter(({ level }) => step < 0 ? order.indexOf(level) < currentIndex : order.indexOf(level) > currentIndex)
+    .sort((left, right) => Math.abs(order.indexOf(left.level) - currentIndex) - Math.abs(order.indexOf(right.level) - currentIndex))[0];
+  return related ? { generatorId: related.item.id, difficulty: related.level, competenceId: generator.competenceId } : null;
 }
 
 export function topicsForWeaknesses(outcomes = []) {
