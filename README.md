@@ -96,7 +96,7 @@ Der vollständige Lauf umfasst aktuell 202 Testfälle:
 - Parser-, Gleichungs-, Form- und Definitionsbereichstests
 - Queue-, Persistenz- und vollständige Eingabeserialisierung
 - echter Test-DOM für App, Tastatur, Hardwaretasten und alle Eingabestrukturen
-- automatisierte Dock- und CSS-Prüfung für sieben mobile Viewports von 320×568 bis 430×932 sowie 844×390 im Querformat
+- automatisierte Dock- und CSS-Prüfung für acht eindeutige mobile Viewports von 320×568 bis 430×932, einschließlich 412×915 (Android) und 844×390 im Querformat
 - ausgeführte Service-Worker-Install-/Activate-/Fetch- und Offline-Fallbacktests
 - Manifest-, Offline-Asset- und GitHub-Pages-Unterpfadprüfungen
 

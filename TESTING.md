@@ -27,7 +27,7 @@ npm run check
 | Parser und Antwortprüfer | Zahlen, Brüche, Ausdrücke, Gleichungen, Mengen, Intervalle, Matrizen, Eigenvektoren, komplexe Zahlen, Winkel, Definitionsbereiche, verlangte Formen, Fehlsyntax und Code-Injection-Abwehr |
 | Eingabe und Tastatur | Cursor, Slots, Matrizen, Hardwaretasten, alle Antwortmodi, vollständige Serialisierung und stabiles `keyboard-dock` in einem echten Test-DOM |
 | Wiederholungswarteschlange | 3–10 Aufgaben Verzögerung, Neustart, Deduplizierung, Themen-/Moduskompatibilität, vollständiger Aufgaben-Snapshot, Erledigen und Neu-Terminieren |
-| Mobile Viewports | 320×568, 375×667, 375×812, 390×844, 393×852, 430×932 und 844×390; Dock-Reihenfolge, Safe Area, responsive Regeln und 44px-Touchziele |
+| Mobile Viewports | 320×568, 375×667, 375×812, 390×844, 393×852, 412×915, 430×932 und 844×390; Dock-Reihenfolge, Safe Area, responsive Regeln und 44px-Touchziele |
 | PWA und Offline | Manifest, relative Pages-Pfade, 44 App-Shell-Einträge, Install/Activate/Fetch, Cache-First-Assets, Offline-Navigation, Cache-Bereinigung und Worker-Update |
 | Produktion | alle 35 Runtime-Module syntaktisch geprüft; 42 verpflichtende lokale Runtime-Assets im Service Worker; insgesamt 37 JavaScript-Dateien; keine externen Ressourcen |
 

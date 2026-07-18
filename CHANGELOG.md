@@ -42,7 +42,7 @@
 - 202 automatisierte Tests
 - 10.000 generierte Aufgaben (100 je aktiver Familie)
 - 1.600 unabhängige Generatorvarianten
-- sieben mobile Dock-Geometrien von iPhone SE bis Pro Max einschließlich Querformat
+- acht eindeutige mobile Dock-Geometrien von iPhone SE bis Pro Max einschließlich Android und Querformat
 - App und Tastatur laufen in einem echten Test-DOM; Service-Worker-Install, -Activate, -Fetch und Offline-Fallback werden ausgeführt
 - statische Produktionsprüfung aller 35 Runtime-Module, 42 verpflichtenden Offline-Assets und des GitHub-Pages-Unterpfads
 - Cloud-Browser-Sichtprüfung nicht ausgeführt: Navigation zu `127.0.0.1:8080` wurde durch die Browser-Sicherheitsrichtlinie blockiert
